@@ -801,6 +801,8 @@ export type ApiCompany = {
   vatNumber: string | null;
   registrationNumber: string | null;
   logoUrl: string | null;
+  assujettiTva: boolean;
+  regimeFiscal: string | null;
 };
 
 export type CompanyPayload = {
@@ -815,6 +817,8 @@ export type CompanyPayload = {
   taxNumber?: string;
   vatNumber?: string;
   registrationNumber?: string;
+  assujettiTva: boolean;
+  regimeFiscal?: string;
 };
 
 export function getMyCompany() {
@@ -896,6 +900,9 @@ export type ApiAchat = {
   subtotal: number;
   taxAmount: number;
   total: number;
+  retenueSourceRate: number;
+  retenueSourceAmount: number;
+  montantNetAPayer: number;
   createdBy: string;
   created: string;
 };
@@ -907,11 +914,15 @@ export type AchatItemPayload = {
   taxId?: string;
 };
 
+/** Taux de retenue à la source admis par la réglementation tunisienne (%). */
+export const RETENUE_SOURCE_RATES = [0, 1, 1.5, 3] as const;
+
 export type AchatPayload = {
   fournisseurId: string;
   currencyId: string;
   date: string;
   note?: string;
+  retenueSourceRate: number;
   items: AchatItemPayload[];
 };
 
@@ -1163,6 +1174,27 @@ export type ApiReportOverview = {
 };
 export type ApiTopClient = { clientId: string; nom: string; total: number };
 export type ApiTopService = { name: string; totalSold: number };
+
+export type ApiFiscalReport = {
+  dateFrom: string | null;
+  dateTo: string | null;
+  assujettiTva: boolean;
+  regimeFiscal: string | null;
+  tvaCollectee: number;
+  tvaDeductible: number;
+  tvaNonRecuperable: number;
+  soldeTva: number;
+  retenueSourceTotal: number;
+  cmv: number;
+};
+
+export function getFiscalReport(dateFrom?: string, dateTo?: string) {
+  const params = new URLSearchParams();
+  if (dateFrom) params.set("dateFrom", dateFrom);
+  if (dateTo) params.set("dateTo", dateTo);
+  const qs = params.toString();
+  return request<ApiFiscalReport>(`/reports/fiscal${qs ? `?${qs}` : ""}`);
+}
 
 export function getReportOverview(dateFrom?: string, dateTo?: string, currency?: string) {
   const params = new URLSearchParams();

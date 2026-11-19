@@ -172,6 +172,15 @@ function Achats() {
             <DetailField label="Total HT" value={formatMoney(viewing.subtotal, viewing.currency?.code)} />
             <DetailField label="Taxes" value={formatMoney(viewing.taxAmount, viewing.currency?.code)} />
             <DetailField label="Total TTC" value={formatMoney(viewing.total, viewing.currency?.code)} />
+            {viewing.retenueSourceRate > 0 ? (
+              <>
+                <DetailField
+                  label={`Retenue à la source (${viewing.retenueSourceRate}%)`}
+                  value={`-${formatMoney(viewing.retenueSourceAmount, viewing.currency?.code)}`}
+                />
+                <DetailField label="Net à payer" value={formatMoney(viewing.montantNetAPayer, viewing.currency?.code)} />
+              </>
+            ) : null}
           </>
         ) : null}
       </DetailSheet>

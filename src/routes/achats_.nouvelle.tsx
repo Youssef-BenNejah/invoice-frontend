@@ -17,6 +17,7 @@ import {
   listFournisseurs,
   listServices,
   listTaxes,
+  RETENUE_SOURCE_RATES,
   type AchatItemPayload,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/route-guards";
@@ -48,6 +49,7 @@ function NouvelAchat() {
   const [devise, setDevise] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState("");
+  const [retenueSourceRate, setRetenueSourceRate] = useState(0);
   const [items, setItems] = useState<Line[]>([emptyLine()]);
 
   useEffect(() => {
@@ -74,6 +76,8 @@ function NouvelAchat() {
   const sousTotalHT = computedItems.reduce((s, l) => s + l.base, 0);
   const totalTaxes = Math.round(computedItems.reduce((s, l) => s + l.taxAmount, 0) * 100) / 100;
   const totalTTC = sousTotalHT + totalTaxes;
+  const retenueSourceAmount = Math.round(((totalTTC * retenueSourceRate) / 100) * 100) / 100;
+  const montantNetAPayer = Math.round((totalTTC - retenueSourceAmount) * 100) / 100;
 
   const addItem = () => setItems((l) => [...l, emptyLine()]);
   const removeItem = (id: string) => setItems((l) => (l.length > 1 ? l.filter((x) => x.id !== id) : l));
@@ -110,7 +114,14 @@ function NouvelAchat() {
       unitPriceHT: l.unitPriceHT,
       ...(l.taxId ? { taxId: l.taxId } : {}),
     }));
-    createMutation.mutate({ fournisseurId, currencyId: selectedDevise.id, date, note, items: payloadItems });
+    createMutation.mutate({
+      fournisseurId,
+      currencyId: selectedDevise.id,
+      date,
+      note,
+      retenueSourceRate,
+      items: payloadItems,
+    });
   };
 
   return (
@@ -159,6 +170,26 @@ function NouvelAchat() {
               <div className="space-y-2">
                 <Label>Date</Label>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 rounded-xl" />
+              </div>
+              <div className="space-y-2">
+                <Label>Retenue à la source</Label>
+                <Select value={String(retenueSourceRate)} onValueChange={(v) => setRetenueSourceRate(Number(v))}>
+                  <SelectTrigger className="h-10 rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RETENUE_SOURCE_RATES.map((r) => (
+                      <SelectItem key={r} value={String(r)}>
+                        {r === 0 ? "Aucune" : `${r}%`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {retenueSourceRate === 0 && totalTTC >= 1000 ? (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Montant ≥ 1000 TND — une retenue à la source (souvent 1,5%) est généralement applicable.
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -256,9 +287,22 @@ function NouvelAchat() {
                 <span className="font-semibold">Total TTC</span>
                 <span className="font-bold text-gradient-ocean">{formatMoney(totalTTC, selectedDevise?.code)}</span>
               </div>
+              {retenueSourceRate > 0 ? (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Retenue à la source ({retenueSourceRate}%)</span>
+                    <span className="font-medium text-destructive">-{formatMoney(retenueSourceAmount, selectedDevise?.code)}</span>
+                  </div>
+                  <div className="my-2 h-px bg-border" />
+                  <div className="flex justify-between text-base">
+                    <span className="font-semibold">Net à payer</span>
+                    <span className="font-bold">{formatMoney(montantNetAPayer, selectedDevise?.code)}</span>
+                  </div>
+                </>
+              ) : null}
             </div>
             <p className="mt-4 rounded-xl bg-ice px-3 py-2.5 text-xs text-muted-foreground dark:bg-white/5">
-              Le stock HT (hors taxe) sert de base au coût moyen pondéré — la TVA n'entre pas dans la valorisation.
+              Le stock HT (hors taxe) sert de base au coût moyen pondéré — sauf si votre entreprise n'est pas assujettie à la TVA (voir Ma entreprise), auquel cas la TVA non récupérable s'ajoute au coût.
             </p>
             <div className="mt-6">
               <Button className="w-full rounded-xl" onClick={persist} disabled={createMutation.isPending}>

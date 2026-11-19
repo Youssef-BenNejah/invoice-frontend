@@ -2,12 +2,14 @@ import { CountrySelect } from "@/components/app/CountrySelect";
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Save, Upload } from "lucide-react";
+import { Building2, Save, Scale, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { AdminLayout, PageHeader } from "@/components/app/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ApiError,
   getMyCompany,
@@ -41,7 +43,11 @@ const emptyForm: CompanyPayload = {
   taxNumber: "",
   vatNumber: "",
   registrationNumber: "",
+  assujettiTva: true,
+  regimeFiscal: "Réel",
 };
+
+const REGIMES_FISCAUX = ["Réel", "Forfaitaire", "Suspension TVA"];
 
 function toForm(c: ApiCompany): CompanyPayload {
   return {
@@ -56,6 +62,8 @@ function toForm(c: ApiCompany): CompanyPayload {
     taxNumber: c.taxNumber ?? "",
     vatNumber: c.vatNumber ?? "",
     registrationNumber: c.registrationNumber ?? "",
+    assujettiTva: c.assujettiTva,
+    regimeFiscal: c.regimeFiscal ?? "Réel",
   };
 }
 
@@ -92,7 +100,8 @@ function MonEntreprise() {
     onError: (err) => onError(err, "Échec de l'envoi du logo"),
   });
 
-  const field = (key: keyof CompanyPayload) => ({
+  type TextField = Exclude<keyof CompanyPayload, "assujettiTva">;
+  const field = (key: TextField) => ({
     value: form[key] ?? "",
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value }),
   });
@@ -164,6 +173,48 @@ function MonEntreprise() {
             <div className="space-y-2 sm:col-span-2">
               <Label>N° d'immatriculation</Label>
               <Input {...field("registrationNumber")} className="rounded-xl" disabled={isLoading} />
+            </div>
+          </div>
+
+          <h2 className="mt-8 flex items-center gap-2 text-base font-semibold">
+            <Scale className="size-4 text-ocean" /> Régime fiscal
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Détermine si la TVA payée sur vos achats est récupérable ou doit entrer dans le coût du stock.
+          </p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="flex items-center justify-between rounded-xl border border-border/60 px-3.5 py-3 sm:col-span-2">
+              <div>
+                <Label className="text-sm">Assujetti à la TVA</Label>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Si désactivé, la TVA sur vos achats n'est pas récupérable et s'ajoute au coût d'acquisition du stock.
+                </p>
+              </div>
+              <Switch
+                checked={form.assujettiTva}
+                onCheckedChange={(v) => setForm({ ...form, assujettiTva: v })}
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Régime</Label>
+              <Select
+                value={form.regimeFiscal ?? "Réel"}
+                onValueChange={(v) => setForm({ ...form, regimeFiscal: v })}
+                disabled={isLoading}
+              >
+                <SelectTrigger className="h-10 rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {REGIMES_FISCAUX.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Informatif — utilisé dans le rapport fiscal (Rapports).</p>
             </div>
           </div>
 

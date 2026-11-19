@@ -46,8 +46,8 @@ export const Route = createFileRoute("/services")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Services — Harmonie-dev" },
-      { name: "description", content: "Votre catalogue de produits et services facturables." },
+      { title: "Stock — Harmonie-dev" },
+      { name: "description", content: "Votre catalogue de produits suivis en stock." },
     ],
   }),
   component: Services,
@@ -100,7 +100,7 @@ function Services() {
   const createMutation = useMutation({
     mutationFn: createService,
     onSuccess: (s) => {
-      toast.success("Service ajouté", { description: s.name });
+      toast.success("Produit ajouté", { description: s.name });
       setOpen(false);
       invalidateServices();
     },
@@ -110,7 +110,7 @@ function Services() {
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: ServicePayload }) => updateService(id, payload),
     onSuccess: (s) => {
-      toast.success("Service mis à jour", { description: s.name });
+      toast.success("Produit mis à jour", { description: s.name });
       setOpen(false);
       invalidateServices();
     },
@@ -121,7 +121,7 @@ function Services() {
     mutationFn: deleteService,
     onSuccess: (_data, id) => {
       const s = rows.find((r) => r.id === id);
-      toast("Service supprimé", { description: s?.name });
+      toast("Produit supprimé", { description: s?.name });
       invalidateServices();
     },
     onError: (err) => onError(err, "Échec de la suppression"),
@@ -213,15 +213,15 @@ function Services() {
   return (
     <AdminLayout>
       <PageHeader
-        title="Services"
-        subtitle="Catalogue de produits et prestations facturables."
+        title="Stock"
+        subtitle="Catalogue de produits suivis en stock, avec valorisation au coût moyen pondéré."
         actions={
           <>
             <Button variant="outline" className="rounded-xl" onClick={() => setCatOpen(true)}>
               <Tag className="mr-1.5 size-4" /> Catégories
             </Button>
             <Button className="rounded-xl" onClick={openCreate}>
-              <Plus className="mr-1.5 size-4" /> Nouveau service
+              <Plus className="mr-1.5 size-4" /> Nouveau produit
             </Button>
           </>
         }
@@ -261,8 +261,8 @@ function Services() {
       {filtered.length === 0 ? (
         <div className="glass rounded-2xl">
           <EmptyState
-            title={isLoading || categoriesLoading ? "Chargement…" : "Aucun service"}
-            description="Ajoutez votre premier service pour commencer à facturer."
+            title={isLoading || categoriesLoading ? "Chargement…" : "Aucun produit"}
+            description="Ajoutez votre premier produit pour commencer à suivre le stock."
           />
         </div>
       ) : (
@@ -332,8 +332,8 @@ function Services() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>{editing ? "Modifier le service" : "Nouveau service"}</SheetTitle>
-            <SheetDescription>Décrivez le produit ou service proposé.</SheetDescription>
+            <SheetTitle>{editing ? "Modifier le produit" : "Nouveau produit"}</SheetTitle>
+            <SheetDescription>Décrivez le produit suivi en stock.</SheetDescription>
           </SheetHeader>
           <div className="mt-6 grid gap-4">
             <div className="space-y-2">
@@ -447,7 +447,7 @@ function Services() {
         onOpenChange={(o) => !o && setViewingId(null)}
         icon={<Layers className="size-5 text-ocean" />}
         title={viewing?.name ?? ""}
-        subtitle="Détail du service"
+        subtitle="Détail du produit"
         footer={
           viewing ? (
             <Button
