@@ -15,9 +15,9 @@ export const Route = createFileRoute("/mot-de-passe-oublie")({
   beforeLoad: redirectIfAuthenticated,
   head: () => ({
     meta: [
-      { title: "Mot de passe oublié — Harmonie-dev" },
+      { title: "Mot de passe oublié" },
       { name: "description", content: "Réinitialisez le mot de passe de votre compte Facture en trois étapes." },
-      { property: "og:title", content: "Mot de passe oublié — Harmonie-dev" },
+      { property: "og:title", content: "Mot de passe oublié" },
       { property: "og:description", content: "Recevez un code de vérification et choisissez un nouveau mot de passe." },
     ],
   }),

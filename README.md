@@ -1,6 +1,6 @@
-# Harmonie-dev — Frontend
+# Invoxa — Frontend
 
-TanStack Start / React app for the Harmonie-dev invoicing platform.
+TanStack Start / React app for the Invoxa invoicing platform.
 
 ## Getting started (clone & run)
 

@@ -13,7 +13,7 @@ export function CurrencySelect({ value, onSelect, disabled }: { value: string; o
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" role="combobox" disabled={disabled} className="w-full justify-between rounded-xl font-normal">
-          <span className="truncate">{selected ? `${selected.code} — ${selected.name}` : <span className="text-muted-foreground">Choisir une devise</span>}</span>
+          <span className="truncate">{selected ? `${selected.code} (${selected.name})` : <span className="text-muted-foreground">Choisir une devise</span>}</span>
           <ChevronsUpDown className="size-4 opacity-50" />
         </Button>
       </PopoverTrigger>

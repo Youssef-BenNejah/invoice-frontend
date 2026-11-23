@@ -17,7 +17,7 @@ export const Route = createFileRoute("/abonnement")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Abonnement — Harmonie-dev" },
+      { title: "Abonnement" },
       { name: "description", content: "Suivez votre essai gratuit et choisissez le plan adapté à votre activité." },
     ],
   }),

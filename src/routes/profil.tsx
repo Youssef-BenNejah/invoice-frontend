@@ -15,7 +15,7 @@ export const Route = createFileRoute("/profil")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Mon profil — Harmonie-dev" },
+      { title: "Mon profil" },
       { name: "description", content: "Gérez vos informations personnelles et votre mot de passe." },
     ],
   }),

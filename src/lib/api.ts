@@ -1,4 +1,4 @@
-// Thin client for the real Harmonie-dev backend (new/back). Handles the JWT access token
+// Thin client for the real Invoxa backend (new/back). Handles the JWT access token
 // (kept in memory + sessionStorage so a page refresh doesn't force a re-login) and the
 // { success, message, data } envelope every endpoint returns.
 
@@ -20,8 +20,8 @@ function resolveApiUrl(): string {
 }
 
 const API_URL = resolveApiUrl();
-const TOKEN_STORAGE_KEY = "harmonie-dev-access-token";
-const REMEMBER_KEY = "harmonie-dev-remember";
+const TOKEN_STORAGE_KEY = "invoxa-access-token";
+const REMEMBER_KEY = "invoxa-remember";
 
 type ApiEnvelope<T> = {
   success: boolean;
@@ -559,39 +559,7 @@ export function setDefaultTax(id: string) {
   return request<ApiTax>(`/taxes/${id}/set-default`, { method: "POST" });
 }
 
-// ---------- Catalogue de services ----------
-
-export type ApiServiceCategory = {
-  id: string;
-  name: string;
-  description: string | null;
-  color: string | null;
-  enabled: boolean;
-  createdBy: string;
-};
-
-export type ServiceCategoryPayload = {
-  name: string;
-  description?: string;
-  color?: string;
-  enabled?: boolean;
-};
-
-export function listServiceCategories() {
-  return request<ApiServiceCategory[]>("/service-categories");
-}
-
-export function createServiceCategory(payload: ServiceCategoryPayload) {
-  return request<ApiServiceCategory>("/service-categories", { method: "POST", body: JSON.stringify(payload) });
-}
-
-export function updateServiceCategory(id: string, payload: ServiceCategoryPayload) {
-  return request<ApiServiceCategory>(`/service-categories/${id}`, { method: "PUT", body: JSON.stringify(payload) });
-}
-
-export function deleteServiceCategory(id: string) {
-  return request<void>(`/service-categories/${id}`, { method: "DELETE" });
-}
+// ---------- Articles ----------
 
 export type ApiService = {
   id: string;
@@ -600,7 +568,12 @@ export type ApiService = {
   price: number;
   description: string | null;
   reference: string | null;
-  categoryId: string | null;
+  defaultTaxId: string | null;
+  longueur: number;
+  largeur: number;
+  hauteur: number;
+  prixAchat: number;
+  margeGain: number;
   createdBy: string;
   created: string;
   stockQuantity: number;
@@ -614,7 +587,11 @@ export type ServicePayload = {
   price: number;
   description?: string;
   reference?: string;
-  categoryId?: string;
+  defaultTaxId?: string;
+  longueur?: number;
+  largeur?: number;
+  hauteur?: number;
+  margeGain?: number;
 };
 
 export function listServices() {
@@ -637,51 +614,57 @@ export function getServiceById(id: string) {
   return request<ApiService>(`/services/${id}`);
 }
 
-// ---------- Stock ----------
+// ---------- Stock (read-only ledger, driven by factures d'achat/vente) ----------
 
-export type ApiStockMovementType = "ACHAT" | "VENTE" | "AJUSTEMENT" | "ANNULATION_ACHAT" | "ANNULATION_VENTE";
-export type ApiStockSourceType = "FACTURE_ACHAT" | "FACTURE_VENTE" | "AJUSTEMENT";
-
-export type ApiStock = {
+export type ApiStockDashboardItem = {
   productId: string;
-  quantity: number;
-  averageCost: number;
-  stockValue: number;
+  article: string;
+  ref: string | null;
+  quantite: number;
+  puHT: number;
+  totalHT: number;
+  puTTC: number;
+  totalTTC: number;
 };
 
-export type ApiStockMovement = {
-  id: string;
-  productId: string;
-  type: ApiStockMovementType;
-  quantityDelta: number;
-  unitCost: number;
-  quantityBefore: number;
-  averageCostBefore: number;
-  quantityAfter: number;
-  averageCostAfter: number;
-  sourceType: ApiStockSourceType;
-  sourceId: string | null;
-  reason: string | null;
-  createdBy: string;
-  created: string;
+export type ApiStockDashboard = {
+  totalValueHT: number;
+  totalValueTTC: number;
+  items: ApiStockDashboardItem[];
 };
 
-export type StockAdjustmentPayload = {
-  productId: string;
-  quantity: number;
-  reason: string;
-};
-
-export function getProductStock(productId: string) {
-  return request<ApiStock>(`/stock/products/${productId}`);
+export function getStockDashboard() {
+  return request<ApiStockDashboard>("/stock/dashboard");
 }
 
-export function listStockMovements(productId: string) {
-  return request<ApiStockMovement[]>(`/stock/products/${productId}/movements`);
+export async function downloadStockReportPdf() {
+  const { blob, fileName } = await requestBlob("/stock/dashboard/pdf");
+  triggerBlobDownload(blob, fileName ?? "rapport-stock.pdf");
 }
 
-export function adjustStock(payload: StockAdjustmentPayload) {
-  return request<ApiStock>("/stock/adjustments", { method: "POST", body: JSON.stringify(payload) });
+export type ApiStockReportItem = {
+  productId: string;
+  article: string;
+  ref: string | null;
+  quantite: number;
+  puHT: number;
+  totalHT: number;
+  puTTC: number;
+  totalTTC: number;
+};
+
+export type ApiStockReport = {
+  year: number;
+  month: number;
+  totalHT: number;
+  totalTVA: number;
+  totalTTC: number;
+  items: ApiStockReportItem[];
+};
+
+export function getStockReport(year: number, month: number) {
+  const params = new URLSearchParams({ year: String(year), month: String(month) });
+  return request<ApiStockReport>(`/stock/report?${params.toString()}`);
 }
 
 // ---------- Devises ----------
@@ -716,73 +699,49 @@ export function deleteCurrency(id: string) {
   return request<void>(`/currencies/${id}`, { method: "DELETE" });
 }
 
-// ---------- Dépenses ----------
+// ---------- Notes impayés fournisseurs ----------
 
-export type ApiDepenseCategory = {
+export type ApiNoteStatus = "NON_PAYE" | "PAYE";
+
+export type ApiDepenseNote = {
   id: string;
-  name: string;
-  color: string | null;
-  enabled: boolean;
-  createdBy: string;
-};
-
-export type DepenseCategoryPayload = {
-  name: string;
-  color?: string;
-  enabled?: boolean;
-};
-
-export function listDepenseCategories() {
-  return request<ApiDepenseCategory[]>("/depense-categories");
-}
-
-export function createDepenseCategory(payload: DepenseCategoryPayload) {
-  return request<ApiDepenseCategory>("/depense-categories", { method: "POST", body: JSON.stringify(payload) });
-}
-
-export function updateDepenseCategory(id: string, payload: DepenseCategoryPayload) {
-  return request<ApiDepenseCategory>(`/depense-categories/${id}`, { method: "PUT", body: JSON.stringify(payload) });
-}
-
-export function deleteDepenseCategory(id: string) {
-  return request<void>(`/depense-categories/${id}`, { method: "DELETE" });
-}
-
-export type ApiDepense = {
-  id: string;
-  name: string;
-  currency: string;
-  price: number;
+  fournisseurNom: string | null;
+  telephone: string | null;
+  montant: number;
+  date: string | null;
+  status: ApiNoteStatus;
   description: string | null;
-  reference: string | null;
-  categoryId: string | null;
   createdBy: string;
   created: string;
 };
 
-export type DepensePayload = {
-  name: string;
-  currency: string;
-  price: number;
+export type DepenseNotePayload = {
+  fournisseurNom?: string;
+  telephone?: string;
+  montant?: number;
+  date?: string;
+  status?: ApiNoteStatus;
   description?: string;
-  reference?: string;
-  categoryId?: string;
 };
 
-export function listDepenses() {
-  return request<ApiDepense[]>("/depenses");
+export function listDepenseNotes() {
+  return request<ApiDepenseNote[]>("/depense-notes");
 }
 
-export function createDepense(payload: DepensePayload) {
-  return request<ApiDepense>("/depenses", { method: "POST", body: JSON.stringify(payload) });
+export function createDepenseNote(payload: DepenseNotePayload) {
+  return request<ApiDepenseNote>("/depense-notes", { method: "POST", body: JSON.stringify(payload) });
 }
 
-export function updateDepense(id: string, payload: DepensePayload) {
-  return request<ApiDepense>(`/depenses/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+export function updateDepenseNote(id: string, payload: DepenseNotePayload) {
+  return request<ApiDepenseNote>(`/depense-notes/${id}`, { method: "PUT", body: JSON.stringify(payload) });
 }
 
-export function deleteDepense(id: string) {
-  return request<void>(`/depenses/${id}`, { method: "DELETE" });
+export function updateDepenseNoteStatus(id: string, status: ApiNoteStatus) {
+  return request<ApiDepenseNote>(`/depense-notes/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
+}
+
+export function deleteDepenseNote(id: string) {
+  return request<void>(`/depense-notes/${id}`, { method: "DELETE" });
 }
 
 // ---------- Ma entreprise ----------
@@ -801,8 +760,6 @@ export type ApiCompany = {
   vatNumber: string | null;
   registrationNumber: string | null;
   logoUrl: string | null;
-  assujettiTva: boolean;
-  regimeFiscal: string | null;
 };
 
 export type CompanyPayload = {
@@ -817,8 +774,6 @@ export type CompanyPayload = {
   taxNumber?: string;
   vatNumber?: string;
   registrationNumber?: string;
-  assujettiTva: boolean;
-  regimeFiscal?: string;
 };
 
 export function getMyCompany() {
@@ -874,79 +829,11 @@ export function deleteFournisseur(id: string) {
   return request<void>(`/fournisseurs/${id}`, { method: "DELETE" });
 }
 
-// ---------- Achats (factures fournisseurs — alimentent le stock) ----------
-
-export type ApiAchatItem = {
-  id: string;
-  productId: string;
-  article: string;
-  quantity: number;
-  unitPriceHT: number;
-  taxId: string | null;
-  taxRate: number;
-  taxAmount: number;
-  total: number;
-};
-
-export type ApiAchat = {
-  id: string;
-  fournisseur: ApiFournisseur | null;
-  currency: ApiCurrency | null;
-  number: number;
-  year: number;
-  date: string;
-  note: string | null;
-  items: ApiAchatItem[];
-  subtotal: number;
-  taxAmount: number;
-  total: number;
-  retenueSourceRate: number;
-  retenueSourceAmount: number;
-  montantNetAPayer: number;
-  createdBy: string;
-  created: string;
-};
-
-export type AchatItemPayload = {
-  productId: string;
-  quantity: number;
-  unitPriceHT: number;
-  taxId?: string;
-};
-
-/** Taux de retenue à la source admis par la réglementation tunisienne (%). */
-export const RETENUE_SOURCE_RATES = [0, 1, 1.5, 3] as const;
-
-export type AchatPayload = {
-  fournisseurId: string;
-  currencyId: string;
-  date: string;
-  note?: string;
-  retenueSourceRate: number;
-  items: AchatItemPayload[];
-};
-
-export function listAchats() {
-  return request<ApiAchat[]>("/achats");
-}
-
-export function getAchatById(id: string) {
-  return request<ApiAchat>(`/achats/${id}`);
-}
-
-export function createAchat(payload: AchatPayload) {
-  return request<ApiAchat>("/achats", { method: "POST", body: JSON.stringify(payload) });
-}
-
-export function deleteAchat(id: string) {
-  return request<void>(`/achats/${id}`, { method: "DELETE" });
-}
-
 // ---------- Factures ----------
 
 export type ApiInvoiceStatus = "Facture" | "Devis" | "Bon de livraison";
-export type ApiPaymentStatus = "impayé" | "Partiellement payé" | "Payé" | "Retard";
-export type ApiInvoiceType = "Standard" | "Proforma";
+export type ApiPaymentStatus = "impayé" | "Partiellement payé" | "Payé";
+export type ApiInvoiceType = "Standard" | "Proforma" | "Achat";
 
 export type ApiInvoiceItem = {
   id: string;
@@ -965,7 +852,8 @@ export type ApiInvoiceItem = {
 
 export type ApiInvoice = {
   id: string;
-  client: ApiClient;
+  client: ApiClient | null;
+  fournisseur: ApiFournisseur | null;
   number: number;
   year: number;
   currency: ApiCurrency;
@@ -974,8 +862,6 @@ export type ApiInvoice = {
   type: ApiInvoiceType;
   isConverted: boolean;
   date: string;
-  expirationDate: string;
-  note: string | null;
   items: ApiInvoiceItem[];
   timbre: number;
   subtotal: number;
@@ -998,13 +884,12 @@ export type InvoiceItemPayload = {
 };
 
 export type InvoicePayload = {
-  clientId: string;
+  clientId?: string;
+  fournisseurId?: string;
   currencyId: string;
   status: ApiInvoiceStatus;
   type?: ApiInvoiceType;
   date: string;
-  expirationDate: string;
-  note?: string;
   timbre: number;
   items: InvoiceItemPayload[];
   factureImage?: string | null;
@@ -1050,7 +935,6 @@ export type InvoiceImportRowPayload = {
   statut?: ApiPaymentStatus;
   type?: ApiInvoiceType;
   numero?: number;
-  note?: string;
   factureImage?: string;
 };
 
@@ -1174,27 +1058,6 @@ export type ApiReportOverview = {
 };
 export type ApiTopClient = { clientId: string; nom: string; total: number };
 export type ApiTopService = { name: string; totalSold: number };
-
-export type ApiFiscalReport = {
-  dateFrom: string | null;
-  dateTo: string | null;
-  assujettiTva: boolean;
-  regimeFiscal: string | null;
-  tvaCollectee: number;
-  tvaDeductible: number;
-  tvaNonRecuperable: number;
-  soldeTva: number;
-  retenueSourceTotal: number;
-  cmv: number;
-};
-
-export function getFiscalReport(dateFrom?: string, dateTo?: string) {
-  const params = new URLSearchParams();
-  if (dateFrom) params.set("dateFrom", dateFrom);
-  if (dateTo) params.set("dateTo", dateTo);
-  const qs = params.toString();
-  return request<ApiFiscalReport>(`/reports/fiscal${qs ? `?${qs}` : ""}`);
-}
 
 export function getReportOverview(dateFrom?: string, dateTo?: string, currency?: string) {
   const params = new URLSearchParams();
@@ -1331,15 +1194,11 @@ export function adminResetPassword(id: string) {
   return request<void>(`/auth/admin/users/${id}/reset-password`, { method: "POST" });
 }
 
-// ---------- Invoice PDF / e-mail / export (server-rendered) ----------
+// ---------- Invoice PDF / export (server-rendered) ----------
 
 export async function downloadInvoicePdf(id: string, fallbackName: string) {
   const { blob, fileName } = await requestBlob(`/invoices/${id}/pdf`);
   triggerBlobDownload(blob, fileName ?? fallbackName);
-}
-
-export function sendInvoiceByEmail(id: string, email?: string) {
-  return request<void>(`/invoices/${id}/send`, { method: "POST", body: JSON.stringify({ email }) });
 }
 
 export async function downloadInvoicesSummaryPdf(ids: string[], fallbackName: string) {
@@ -1368,4 +1227,37 @@ export async function downloadReportPdf(dateFrom?: string, dateTo?: string, curr
 
 export function listAllPayments() {
   return request<ApiPayment[]>("/payments");
+}
+
+// ---------- Sync (desktop offline/online + cloud conflicts) ----------
+
+export type ApiSyncStatus = {
+  cloudConfigured: boolean;
+  online: boolean;
+  syncing: boolean;
+  lastSuccessAt: string | null;
+  lastAttemptAt: string | null;
+  lastErrorMessage: string | null;
+  openConflictCount: number;
+};
+
+export type ApiSyncConflict = {
+  id: string;
+  collectionName: string;
+  documentId: string;
+  previousCloudPayload: Record<string, unknown> | null;
+  incomingPayload: Record<string, unknown> | null;
+  created: string;
+};
+
+export function getSyncStatus() {
+  return request<ApiSyncStatus>("/sync/status");
+}
+
+export function listSyncConflicts() {
+  return request<ApiSyncConflict[]>("/sync/conflicts");
+}
+
+export function acknowledgeSyncConflict(id: string) {
+  return request<void>(`/sync/conflicts/${id}/acknowledge`, { method: "POST" });
 }

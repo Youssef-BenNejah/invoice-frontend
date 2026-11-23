@@ -27,7 +27,7 @@ export const Route = createFileRoute("/superadmin_/demandes")({
   beforeLoad: requireSuperAdmin,
   head: () => ({
     meta: [
-      { title: "Demandes d'adhésion — Harmonie-dev" },
+      { title: "Demandes d'adhésion" },
       { name: "description", content: "Contactez et convertissez les demandes d'adhésion à la plateforme." },
     ],
   }),
@@ -129,7 +129,7 @@ function JoinRequestsPage() {
         r.requestedPlanNom ? (
           <span className="font-medium">{r.requestedPlanNom}</span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          <span className="text-muted-foreground"></span>
         ),
     },
     {
@@ -178,7 +178,7 @@ function JoinRequestsPage() {
 
       {isError ? (
         <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Impossible de charger les demandes — vérifiez que le serveur backend est démarré.
+          Impossible de charger les demandes. Vérifiez que le serveur backend est démarré.
         </div>
       ) : null}
 

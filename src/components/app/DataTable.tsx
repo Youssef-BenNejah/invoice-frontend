@@ -24,6 +24,7 @@ export function DataTable<T extends { id: string }>({
   selectable,
   onSelectionChange,
   emptyTitle = "Aucun résultat",
+  defaultSort,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -34,10 +35,12 @@ export function DataTable<T extends { id: string }>({
   selectable?: boolean;
   onSelectionChange?: (ids: string[]) => void;
   emptyTitle?: string;
+  /** Sorted by this column from the first render, instead of the API's own row order, until the user clicks a header. */
+  defaultSort?: { key: string; dir: "asc" | "desc" };
 }) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
+  const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(defaultSort ?? null);
   const [selected, setSelected] = useState<string[]>([]);
 
   const filtered = useMemo(() => {

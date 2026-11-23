@@ -69,11 +69,11 @@ export function PlanUsageCard() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-base font-semibold">
-            <Crown className="size-4 text-ocean dark:text-sky" /> Votre plan — {usage.planNom ?? "—"}
+            <Crown className="size-4 text-ocean dark:text-sky" /> Votre plan : {usage.planNom ?? ""}
           </h2>
           {usage.freeTrial && usage.trialDaysLeft !== null ? (
             <p className="text-sm text-muted-foreground">
-              Essai gratuit — {usage.trialDaysLeft} jour{usage.trialDaysLeft > 1 ? "s" : ""} restant{usage.trialDaysLeft > 1 ? "s" : ""}
+              Essai gratuit : {usage.trialDaysLeft} jour{usage.trialDaysLeft > 1 ? "s" : ""} restant{usage.trialDaysLeft > 1 ? "s" : ""}
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">Consommation du mois en cours</p>
@@ -114,7 +114,7 @@ export function PlanFeatureLocked({ label }: { label: string }) {
         <Lock className="size-5" />
       </span>
       <div>
-        <p className="font-semibold">{label} — non inclus dans votre plan</p>
+        <p className="font-semibold">{label} : non inclus dans votre plan</p>
         <p className="mt-1 text-sm text-muted-foreground">Passez à un plan supérieur pour débloquer cette fonctionnalité.</p>
       </div>
       <Button asChild className="rounded-xl">

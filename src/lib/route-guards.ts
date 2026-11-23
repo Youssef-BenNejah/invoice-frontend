@@ -24,6 +24,8 @@ import {
   type ApiUser,
 } from "@/lib/api";
 
+const homeRouteFor = (role: ApiRole): "/services" | "/personnes" => (role === "ADMIN" ? "/services" : "/personnes");
+
 async function resolveUser(): Promise<ApiUser | null> {
   const cached = getCurrentUser();
   if (cached) return cached;
@@ -49,7 +51,7 @@ export async function requireAuth(): Promise<ApiUser | null> {
 
 export async function requireSuperAdmin(): Promise<ApiUser | null> {
   const user = await requireAuth();
-  if (user && user.role !== "ADMIN") throw redirect({ to: "/tableau-de-bord" });
+  if (user && user.role !== "ADMIN") throw redirect({ to: homeRouteFor(user.role) });
   return user;
 }
 
@@ -57,12 +59,12 @@ export async function redirectIfAuthenticated(): Promise<void> {
   if (typeof window === "undefined") return;
   if (!getAccessToken()) return;
   const user = await resolveUser();
-  if (user) throw redirect({ to: user.role === "ADMIN" ? "/superadmin" : "/tableau-de-bord" });
+  if (user) throw redirect({ to: homeRouteFor(user.role) });
 }
 
 // ---------- Mount-time hooks (covers hard navigations / page refresh) ----------
 
-/** Use in a protected layout: redirects to /login if there's no session, and to /tableau-de-bord if `requiredRole` doesn't match. */
+/** Use in a protected layout: redirects to /login if there's no session, and to the user's home route if `requiredRole` doesn't match. */
 export function useAuthGuard(requiredRole?: ApiRole) {
   const navigate = useNavigate();
   const currentUser = useCurrentUser();
@@ -85,7 +87,7 @@ export function useAuthGuard(requiredRole?: ApiRole) {
 
   useEffect(() => {
     if (requiredRole && currentUser && currentUser.role !== requiredRole) {
-      navigate({ to: "/tableau-de-bord", replace: true });
+      navigate({ to: homeRouteFor(currentUser.role), replace: true });
     }
   }, [requiredRole, currentUser, navigate]);
 }
@@ -105,7 +107,7 @@ export function useRedirectIfAuthenticated() {
 
   useEffect(() => {
     if (currentUser) {
-      navigate({ to: currentUser.role === "ADMIN" ? "/superadmin" : "/tableau-de-bord", replace: true });
+      navigate({ to: homeRouteFor(currentUser.role), replace: true });
     }
   }, [currentUser, navigate]);
 }

@@ -6,7 +6,7 @@ export const Route = createFileRoute("/factures-ventes")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Factures Ventes — Harmonie-dev" },
+      { title: "Factures Ventes" },
       { name: "description", content: "Suivez et gérez vos factures de vente standard." },
     ],
   }),

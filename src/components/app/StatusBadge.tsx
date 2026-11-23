@@ -9,7 +9,6 @@ const styles: Record<string, string> = {
   Payé: "bg-success/15 text-success border-success/30",
   "Partiellement payé": "bg-ocean/12 text-ocean border-ocean/30 dark:text-sky",
   "impayé": "bg-muted text-muted-foreground border-border",
-  Retard: "bg-destructive/12 text-destructive border-destructive/30",
   // Client type
   Personne: "bg-ice text-navy border-navy/15",
   Entreprise: "bg-ocean/12 text-ocean border-ocean/25 dark:text-sky",

@@ -11,7 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AbonnementRouteImport } from './routes/abonnement'
-import { Route as AchatsRouteImport } from './routes/achats'
+import { Route as ArticlesRouteImport } from './routes/articles'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as DepensesRouteImport } from './routes/depenses'
 import { Route as DeviseRouteImport } from './routes/devise'
@@ -28,10 +28,7 @@ import { Route as ProfilRouteImport } from './routes/profil'
 import { Route as RapportsRouteImport } from './routes/rapports'
 import { Route as RejoindreRouteImport } from './routes/rejoindre'
 import { Route as ServicesRouteImport } from './routes/services'
-import { Route as SuperadminRouteImport } from './routes/superadmin'
-import { Route as TableauDeBordRouteImport } from './routes/tableau-de-bord'
 import { Route as TaxesRouteImport } from './routes/taxes'
-import { Route as AchatsNouvelleRouteImport } from './routes/achats_.nouvelle'
 import { Route as FacturesIdRouteImport } from './routes/factures.$id'
 import { Route as FacturesNouvelleRouteImport } from './routes/factures.nouvelle'
 import { Route as SuperadminDemandesRouteImport } from './routes/superadmin_.demandes'
@@ -47,9 +44,9 @@ const AbonnementRoute = AbonnementRouteImport.update({
   path: '/abonnement',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AchatsRoute = AchatsRouteImport.update({
-  id: '/achats',
-  path: '/achats',
+const ArticlesRoute = ArticlesRouteImport.update({
+  id: '/articles',
+  path: '/articles',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientsRoute = ClientsRouteImport.update({
@@ -132,24 +129,9 @@ const ServicesRoute = ServicesRouteImport.update({
   path: '/services',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SuperadminRoute = SuperadminRouteImport.update({
-  id: '/superadmin',
-  path: '/superadmin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TableauDeBordRoute = TableauDeBordRouteImport.update({
-  id: '/tableau-de-bord',
-  path: '/tableau-de-bord',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const TaxesRoute = TaxesRouteImport.update({
   id: '/taxes',
   path: '/taxes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AchatsNouvelleRoute = AchatsNouvelleRouteImport.update({
-  id: '/achats_/nouvelle',
-  path: '/achats/nouvelle',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FacturesIdRoute = FacturesIdRouteImport.update({
@@ -176,7 +158,7 @@ const SuperadminPlansRoute = SuperadminPlansRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/abonnement': typeof AbonnementRoute
-  '/achats': typeof AchatsRoute
+  '/articles': typeof ArticlesRoute
   '/clients': typeof ClientsRoute
   '/depenses': typeof DepensesRoute
   '/devise': typeof DeviseRoute
@@ -193,10 +175,7 @@ export interface FileRoutesByFullPath {
   '/rapports': typeof RapportsRoute
   '/rejoindre': typeof RejoindreRoute
   '/services': typeof ServicesRoute
-  '/superadmin': typeof SuperadminRoute
-  '/tableau-de-bord': typeof TableauDeBordRoute
   '/taxes': typeof TaxesRoute
-  '/achats/nouvelle': typeof AchatsNouvelleRoute
   '/factures/$id': typeof FacturesIdRoute
   '/factures/nouvelle': typeof FacturesNouvelleRoute
   '/superadmin/demandes': typeof SuperadminDemandesRoute
@@ -205,7 +184,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/abonnement': typeof AbonnementRoute
-  '/achats': typeof AchatsRoute
+  '/articles': typeof ArticlesRoute
   '/clients': typeof ClientsRoute
   '/depenses': typeof DepensesRoute
   '/devise': typeof DeviseRoute
@@ -222,10 +201,7 @@ export interface FileRoutesByTo {
   '/rapports': typeof RapportsRoute
   '/rejoindre': typeof RejoindreRoute
   '/services': typeof ServicesRoute
-  '/superadmin': typeof SuperadminRoute
-  '/tableau-de-bord': typeof TableauDeBordRoute
   '/taxes': typeof TaxesRoute
-  '/achats/nouvelle': typeof AchatsNouvelleRoute
   '/factures/$id': typeof FacturesIdRoute
   '/factures/nouvelle': typeof FacturesNouvelleRoute
   '/superadmin/demandes': typeof SuperadminDemandesRoute
@@ -235,7 +211,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/abonnement': typeof AbonnementRoute
-  '/achats': typeof AchatsRoute
+  '/articles': typeof ArticlesRoute
   '/clients': typeof ClientsRoute
   '/depenses': typeof DepensesRoute
   '/devise': typeof DeviseRoute
@@ -252,10 +228,7 @@ export interface FileRoutesById {
   '/rapports': typeof RapportsRoute
   '/rejoindre': typeof RejoindreRoute
   '/services': typeof ServicesRoute
-  '/superadmin': typeof SuperadminRoute
-  '/tableau-de-bord': typeof TableauDeBordRoute
   '/taxes': typeof TaxesRoute
-  '/achats_/nouvelle': typeof AchatsNouvelleRoute
   '/factures/$id': typeof FacturesIdRoute
   '/factures/nouvelle': typeof FacturesNouvelleRoute
   '/superadmin_/demandes': typeof SuperadminDemandesRoute
@@ -266,7 +239,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/abonnement'
-    | '/achats'
+    | '/articles'
     | '/clients'
     | '/depenses'
     | '/devise'
@@ -283,10 +256,7 @@ export interface FileRouteTypes {
     | '/rapports'
     | '/rejoindre'
     | '/services'
-    | '/superadmin'
-    | '/tableau-de-bord'
     | '/taxes'
-    | '/achats/nouvelle'
     | '/factures/$id'
     | '/factures/nouvelle'
     | '/superadmin/demandes'
@@ -295,7 +265,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/abonnement'
-    | '/achats'
+    | '/articles'
     | '/clients'
     | '/depenses'
     | '/devise'
@@ -312,10 +282,7 @@ export interface FileRouteTypes {
     | '/rapports'
     | '/rejoindre'
     | '/services'
-    | '/superadmin'
-    | '/tableau-de-bord'
     | '/taxes'
-    | '/achats/nouvelle'
     | '/factures/$id'
     | '/factures/nouvelle'
     | '/superadmin/demandes'
@@ -324,7 +291,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/abonnement'
-    | '/achats'
+    | '/articles'
     | '/clients'
     | '/depenses'
     | '/devise'
@@ -341,10 +308,7 @@ export interface FileRouteTypes {
     | '/rapports'
     | '/rejoindre'
     | '/services'
-    | '/superadmin'
-    | '/tableau-de-bord'
     | '/taxes'
-    | '/achats_/nouvelle'
     | '/factures/$id'
     | '/factures/nouvelle'
     | '/superadmin_/demandes'
@@ -354,7 +318,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AbonnementRoute: typeof AbonnementRoute
-  AchatsRoute: typeof AchatsRoute
+  ArticlesRoute: typeof ArticlesRoute
   ClientsRoute: typeof ClientsRoute
   DepensesRoute: typeof DepensesRoute
   DeviseRoute: typeof DeviseRoute
@@ -371,10 +335,7 @@ export interface RootRouteChildren {
   RapportsRoute: typeof RapportsRoute
   RejoindreRoute: typeof RejoindreRoute
   ServicesRoute: typeof ServicesRoute
-  SuperadminRoute: typeof SuperadminRoute
-  TableauDeBordRoute: typeof TableauDeBordRoute
   TaxesRoute: typeof TaxesRoute
-  AchatsNouvelleRoute: typeof AchatsNouvelleRoute
   FacturesIdRoute: typeof FacturesIdRoute
   FacturesNouvelleRoute: typeof FacturesNouvelleRoute
   SuperadminDemandesRoute: typeof SuperadminDemandesRoute
@@ -397,11 +358,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AbonnementRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/achats': {
-      id: '/achats'
-      path: '/achats'
-      fullPath: '/achats'
-      preLoaderRoute: typeof AchatsRouteImport
+    '/articles': {
+      id: '/articles'
+      path: '/articles'
+      fullPath: '/articles'
+      preLoaderRoute: typeof ArticlesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/clients': {
@@ -516,32 +477,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/superadmin': {
-      id: '/superadmin'
-      path: '/superadmin'
-      fullPath: '/superadmin'
-      preLoaderRoute: typeof SuperadminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tableau-de-bord': {
-      id: '/tableau-de-bord'
-      path: '/tableau-de-bord'
-      fullPath: '/tableau-de-bord'
-      preLoaderRoute: typeof TableauDeBordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/taxes': {
       id: '/taxes'
       path: '/taxes'
       fullPath: '/taxes'
       preLoaderRoute: typeof TaxesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/achats_/nouvelle': {
-      id: '/achats_/nouvelle'
-      path: '/achats/nouvelle'
-      fullPath: '/achats/nouvelle'
-      preLoaderRoute: typeof AchatsNouvelleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/factures/$id': {
@@ -578,7 +518,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AbonnementRoute: AbonnementRoute,
-  AchatsRoute: AchatsRoute,
+  ArticlesRoute: ArticlesRoute,
   ClientsRoute: ClientsRoute,
   DepensesRoute: DepensesRoute,
   DeviseRoute: DeviseRoute,
@@ -595,10 +535,7 @@ const rootRouteChildren: RootRouteChildren = {
   RapportsRoute: RapportsRoute,
   RejoindreRoute: RejoindreRoute,
   ServicesRoute: ServicesRoute,
-  SuperadminRoute: SuperadminRoute,
-  TableauDeBordRoute: TableauDeBordRoute,
   TaxesRoute: TaxesRoute,
-  AchatsNouvelleRoute: AchatsNouvelleRoute,
   FacturesIdRoute: FacturesIdRoute,
   FacturesNouvelleRoute: FacturesNouvelleRoute,
   SuperadminDemandesRoute: SuperadminDemandesRoute,

@@ -1,552 +1,286 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, History, Layers, Pencil, Plus, SlidersHorizontal, Tag, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { AdminLayout, PageHeader } from "@/components/app/AdminLayout";
-import { DetailField, DetailSheet } from "@/components/app/DetailSheet";
+import { DataTable, type Column } from "@/components/app/DataTable";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatMoney } from "@/lib/mock-data";
 import {
   ApiError,
-  adjustStock,
-  createService,
-  createServiceCategory,
-  deleteService,
-  deleteServiceCategory,
-  getServiceById,
-  listServiceCategories,
-  listServices,
-  listStockMovements,
-  updateService,
-  type ApiService,
-  type ApiServiceCategory,
-  type ApiStockMovementType,
-  type ServiceCategoryPayload,
-  type ServicePayload,
+  downloadStockReportPdf,
+  getStockDashboard,
+  getStockReport,
+  type ApiStockDashboardItem,
+  type ApiStockReportItem,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/route-guards";
-import { cn } from "@/lib/utils";
 
-const movementLabels: Record<ApiStockMovementType, string> = {
-  ACHAT: "Achat",
-  VENTE: "Vente",
-  AJUSTEMENT: "Ajustement",
-  ANNULATION_ACHAT: "Annulation d'achat",
-  ANNULATION_VENTE: "Annulation de vente",
-};
+const MONTHS = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+];
 
 export const Route = createFileRoute("/services")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Stock — Harmonie-dev" },
-      { name: "description", content: "Votre catalogue de produits suivis en stock." },
+      { title: "Stock" },
+      { name: "description", content: "Suivi du stock par article, mis à jour à chaque facture d'achat ou de vente." },
     ],
   }),
-  component: Services,
+  component: Stock,
 });
 
-type FormState = ServicePayload;
-const emptyForm = (categoryId: string): FormState => ({ name: "", price: 0, currency: "TND", description: "", reference: "", categoryId });
-const emptyCategory: ServiceCategoryPayload = { name: "", description: "", color: "#1565C6" };
-
-function Services() {
-  const queryClient = useQueryClient();
-  const { data: categories = [], isLoading: categoriesLoading, isError: categoriesError } = useQuery({
-    queryKey: ["service-categories"],
-    queryFn: listServiceCategories,
-  });
-  const { data: rows = [], isLoading, isError } = useQuery({ queryKey: ["services"], queryFn: listServices });
-
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<ApiService | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm(""));
-  const [catOpen, setCatOpen] = useState(false);
-  const [newCategory, setNewCategory] = useState(emptyCategory);
-  const [viewingId, setViewingId] = useState<string | null>(null);
-  const [ledgerProduct, setLedgerProduct] = useState<ApiService | null>(null);
-  const [adjustingProduct, setAdjustingProduct] = useState<ApiService | null>(null);
-  const [adjustQty, setAdjustQty] = useState(0);
-  const [adjustReason, setAdjustReason] = useState("");
-
-  const { data: viewing } = useQuery({
-    queryKey: ["service", viewingId],
-    queryFn: () => getServiceById(viewingId as string),
-    enabled: !!viewingId,
-  });
-
-  const { data: movements = [], isLoading: movementsLoading } = useQuery({
-    queryKey: ["stock-movements", ledgerProduct?.id],
-    queryFn: () => listStockMovements(ledgerProduct!.id),
-    enabled: !!ledgerProduct,
-  });
-
-  const invalidateServices = () => queryClient.invalidateQueries({ queryKey: ["services"] });
-  const invalidateCategories = () => queryClient.invalidateQueries({ queryKey: ["service-categories"] });
-
-  const onError = (err: unknown, fallback: string) => {
-    const message = err instanceof ApiError ? err.message : fallback;
-    toast.error(fallback, { description: message });
-  };
-
-  const createMutation = useMutation({
-    mutationFn: createService,
-    onSuccess: (s) => {
-      toast.success("Produit ajouté", { description: s.name });
-      setOpen(false);
-      invalidateServices();
-    },
-    onError: (err) => onError(err, "Échec de la création"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: ServicePayload }) => updateService(id, payload),
-    onSuccess: (s) => {
-      toast.success("Produit mis à jour", { description: s.name });
-      setOpen(false);
-      invalidateServices();
-    },
-    onError: (err) => onError(err, "Échec de la mise à jour"),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteService,
-    onSuccess: (_data, id) => {
-      const s = rows.find((r) => r.id === id);
-      toast("Produit supprimé", { description: s?.name });
-      invalidateServices();
-    },
-    onError: (err) => onError(err, "Échec de la suppression"),
-  });
-
-  const createCategoryMutation = useMutation({
-    mutationFn: createServiceCategory,
-    onSuccess: () => {
-      setNewCategory(emptyCategory);
-      invalidateCategories();
-    },
-    onError: (err) => onError(err, "Échec de la création de la catégorie"),
-  });
-
-  const deleteCategoryMutation = useMutation({
-    mutationFn: deleteServiceCategory,
-    onSuccess: (_data, id) => {
-      if (activeCategory === id) setActiveCategory(null);
-      invalidateCategories();
-    },
-    onError: (err) => onError(err, "Échec de la suppression de la catégorie"),
-  });
-
-  const categoryById = (id?: string | null) => categories.find((c) => c.id === id);
-  const filtered = activeCategory ? rows.filter((s) => s.categoryId === activeCategory) : rows;
-
-  const openCreate = () => {
-    setEditing(null);
-    setForm(emptyForm(activeCategory ?? categories[0]?.id ?? ""));
-    setOpen(true);
-  };
-
-  const openEdit = (s: ApiService) => {
-    setEditing(s);
-    setForm({ name: s.name, price: s.price, currency: s.currency, description: s.description ?? "", reference: s.reference ?? "", categoryId: s.categoryId ?? "" });
-    setOpen(true);
-  };
-
-  const save = () => {
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, payload: form });
-    } else {
-      createMutation.mutate(form);
-    }
-  };
-
-  const remove = (s: ApiService) => {
-    deleteMutation.mutate(s.id);
-  };
-
-  const addCategory = () => {
-    const name = newCategory.name.trim();
-    if (!name) return;
-    createCategoryMutation.mutate({ ...newCategory, name });
-  };
-
-  const removeCategory = (id: string) => {
-    deleteCategoryMutation.mutate(id);
-  };
-
-  const adjustMutation = useMutation({
-    mutationFn: adjustStock,
-    onSuccess: () => {
-      toast.success("Stock ajusté", { description: adjustingProduct?.name });
-      setAdjustingProduct(null);
-      invalidateServices();
-      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
-    },
-    onError: (err) => onError(err, "Échec de l'ajustement"),
-  });
-
-  const openLedger = (s: ApiService) => setLedgerProduct(s);
-
-  const openAdjust = (s: ApiService) => {
-    setAdjustingProduct(s);
-    setAdjustQty(s.stockQuantity);
-    setAdjustReason("");
-  };
-
-  const saveAdjust = () => {
-    if (!adjustingProduct) return;
-    if (!adjustReason.trim()) {
-      toast.error("Motif requis", { description: "Indiquez la raison de cet ajustement (traçabilité)." });
-      return;
-    }
-    adjustMutation.mutate({ productId: adjustingProduct.id, quantity: adjustQty, reason: adjustReason.trim() });
-  };
+function Stock() {
+  const [tab, setTab] = useState<"stock" | "rapport">("stock");
 
   return (
     <AdminLayout>
       <PageHeader
         title="Stock"
-        subtitle="Catalogue de produits suivis en stock, avec valorisation au coût moyen pondéré."
-        actions={
-          <>
-            <Button variant="outline" className="rounded-xl" onClick={() => setCatOpen(true)}>
-              <Tag className="mr-1.5 size-4" /> Catégories
-            </Button>
-            <Button className="rounded-xl" onClick={openCreate}>
-              <Plus className="mr-1.5 size-4" /> Nouveau produit
-            </Button>
-          </>
-        }
+        subtitle="Une ligne par article dès sa première facture d'achat — mise à jour à chaque facture d'achat ou de vente."
       />
 
-      {isError || categoriesError ? (
+      <div className="mb-6">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+          <TabsList>
+            <TabsTrigger value="stock">Stock</TabsTrigger>
+            <TabsTrigger value="rapport">Rapport</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {tab === "stock" ? <StockTab /> : <RapportTab />}
+    </AdminLayout>
+  );
+}
+
+function StockTab() {
+  const { data: dashboard, isLoading, isError } = useQuery({ queryKey: ["stock-dashboard"], queryFn: getStockDashboard });
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const downloadPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      await downloadStockReportPdf();
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Échec de la génération du rapport";
+      toast.error("Échec de la génération du rapport", { description: message });
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const columns: Column<ApiStockDashboardItem>[] = [
+    {
+      key: "article",
+      header: "Article",
+      sortable: true,
+      sortValue: (i) => i.article,
+      cell: (i) => <span className="font-medium">{i.article}</span>,
+    },
+    {
+      key: "ref",
+      header: "Réf.",
+      cell: (i) => <span className="text-sm text-muted-foreground">{i.ref || ""}</span>,
+    },
+    {
+      key: "quantite",
+      header: "Quantité",
+      className: "text-right",
+      sortable: true,
+      sortValue: (i) => i.quantite,
+      cell: (i) => <span className="font-semibold">{i.quantite}</span>,
+    },
+    {
+      key: "puHT",
+      header: "PU HT",
+      className: "text-right",
+      sortable: true,
+      sortValue: (i) => i.puHT,
+      cell: (i) => <span className="text-sm">{formatMoney(i.puHT, "TND")}</span>,
+    },
+    {
+      key: "totalHT",
+      header: "Total HT",
+      className: "text-right",
+      sortable: true,
+      sortValue: (i) => i.totalHT,
+      cell: (i) => <span className="text-sm font-medium">{formatMoney(i.totalHT, "TND")}</span>,
+    },
+    {
+      key: "puTTC",
+      header: "PU TTC",
+      className: "text-right",
+      sortable: true,
+      sortValue: (i) => i.puTTC,
+      cell: (i) => <span className="text-sm">{formatMoney(i.puTTC, "TND")}</span>,
+    },
+    {
+      key: "totalTTC",
+      header: "Total TTC",
+      className: "text-right",
+      sortable: true,
+      sortValue: (i) => i.totalTTC,
+      cell: (i) => <span className="font-semibold text-gradient-ocean">{formatMoney(i.totalTTC, "TND")}</span>,
+    },
+  ];
+
+  return (
+    <>
+      {isError ? (
         <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Impossible de charger le catalogue — vérifiez que le serveur backend est démarré.
+          Impossible de charger le stock. Vérifiez que le serveur backend est démarré.
         </div>
       ) : null}
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        <button
-          onClick={() => setActiveCategory(null)}
-          className={cn(
-            "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-            activeCategory === null ? "border-ocean bg-ocean text-primary-foreground" : "border-border bg-background/60 text-muted-foreground hover:text-foreground",
-          )}
-        >
-          Toutes ({rows.length})
-        </button>
-        {categories.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => setActiveCategory(c.id)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-              activeCategory === c.id ? "border-ocean bg-ocean text-primary-foreground" : "border-border bg-background/60 text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <span className="size-2 rounded-full" style={{ background: activeCategory === c.id ? "currentColor" : (c.color ?? "#1565C6") }} />
-            {c.name} ({rows.filter((s) => s.categoryId === c.id).length})
-          </button>
-        ))}
+      <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
+        <Button variant="outline" className="rounded-xl" onClick={downloadPdf} disabled={downloadingPdf}>
+          <Download className="mr-1.5 size-4" /> {downloadingPdf ? "Génération…" : "Rapport PDF"}
+        </Button>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="glass rounded-2xl">
-          <EmptyState
-            title={isLoading || categoriesLoading ? "Chargement…" : "Aucun produit"}
-            description="Ajoutez votre premier produit pour commencer à suivre le stock."
-          />
+      <div className="mb-6 grid gap-4 sm:grid-cols-2">
+        <div className="glass rounded-2xl p-5">
+          <p className="text-sm text-muted-foreground">Valeur totale du stock (HT)</p>
+          <p className="mt-2 text-2xl font-semibold">{formatMoney(dashboard?.totalValueHT ?? 0, "TND")}</p>
         </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((s) => {
-            const cat = categoryById(s.categoryId);
-            return (
-              <div key={s.id} className="glass lift flex flex-col rounded-2xl p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <span className="grid size-10 place-items-center rounded-xl bg-ocean/10 text-ocean dark:text-sky">
-                    <Layers className="size-5" />
-                  </span>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="size-8 rounded-lg" title="Mouvements de stock" onClick={() => openLedger(s)}>
-                      <History className="size-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="size-8 rounded-lg" title="Ajuster le stock" onClick={() => openAdjust(s)}>
-                      <SlidersHorizontal className="size-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="size-8 rounded-lg" onClick={() => setViewingId(s.id)}>
-                      <Eye className="size-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="size-8 rounded-lg" onClick={() => openEdit(s)}>
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="size-8 rounded-lg text-destructive hover:text-destructive" onClick={() => remove(s)}>
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-                <h3 className="mt-4 font-semibold">{s.name}</h3>
-                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{s.description}</p>
-                <div className="mt-3 flex items-center justify-between rounded-xl bg-ice px-3 py-2 text-xs dark:bg-white/5">
-                  <span className="text-muted-foreground">
-                    Stock : <span className={cn("font-semibold", s.stockQuantity <= 0 ? "text-destructive" : "text-foreground")}>{s.stockQuantity}</span>
-                  </span>
-                  <span className="text-muted-foreground">
-                    CMP : <span className="font-semibold text-foreground">{formatMoney(s.averageCost, s.currency)}</span>
-                  </span>
-                  <span className="text-muted-foreground">
-                    Valeur : <span className="font-semibold text-foreground">{formatMoney(s.stockValue, s.currency)}</span>
-                  </span>
-                </div>
-                <div className="mt-3 flex items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {cat ? (
-                      <span
-                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-navy dark:text-sky"
-                        style={{ background: `${cat.color ?? "#1565C6"}1a` }}
-                      >
-                        <span className="size-2 rounded-full" style={{ background: cat.color ?? "#1565C6" }} />
-                        {cat.name}
-                      </span>
-                    ) : null}
-                    {s.reference ? (
-                      <span className="rounded-full bg-ice px-2.5 py-1 text-xs font-medium text-navy dark:bg-white/10 dark:text-sky">{s.reference}</span>
-                    ) : null}
-                  </div>
-                  <span className="text-lg font-semibold text-gradient-ocean">{formatMoney(s.price, s.currency)}</span>
-                </div>
-              </div>
-            );
-          })}
+        <div className="glass rounded-2xl p-5">
+          <p className="text-sm text-muted-foreground">Valeur totale du stock (TTC)</p>
+          <p className="mt-2 text-2xl font-semibold text-gradient-ocean">{formatMoney(dashboard?.totalValueTTC ?? 0, "TND")}</p>
         </div>
-      )}
+      </div>
 
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>{editing ? "Modifier le produit" : "Nouveau produit"}</SheetTitle>
-            <SheetDescription>Décrivez le produit suivi en stock.</SheetDescription>
-          </SheetHeader>
-          <div className="mt-6 grid gap-4">
-            <div className="space-y-2">
-              <Label>Nom</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-xl" />
-            </div>
-            <div className="space-y-2">
-              <Label>Catégorie</Label>
-              <Select value={form.categoryId} onValueChange={(v) => setForm({ ...form, categoryId: v })}>
-                <SelectTrigger className="h-10 rounded-xl">
-                  <SelectValue placeholder="Choisir une catégorie…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Référence</Label>
-              <Input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} className="rounded-xl" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Prix</Label>
-                <Input
-                  type="number"
-                  value={form.price}
-                  onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Devise</Label>
-                <Select value={form.currency} onValueChange={(v) => setForm({ ...form, currency: v })}>
-                  <SelectTrigger className="h-10 rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TND">TND</SelectItem>
-                    <SelectItem value="EUR">EUR</SelectItem>
-                    <SelectItem value="USD">USD</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="rounded-xl" />
-            </div>
-          </div>
-          <SheetFooter className="mt-6">
-            <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
-              Annuler
-            </Button>
-            <Button
-              className="rounded-xl"
-              onClick={save}
-              disabled={!form.name || createMutation.isPending || updateMutation.isPending}
-            >
-              Enregistrer
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+      <DataTable
+        rows={(dashboard?.items ?? []).map((i) => ({ ...i, id: i.productId }))}
+        columns={columns}
+        searchKeys={(i) => `${i.article} ${i.ref ?? ""}`}
+        searchPlaceholder="Rechercher un article…"
+        emptyTitle={isLoading ? "Chargement…" : "Aucun article en stock"}
+        defaultSort={{ key: "article", dir: "asc" }}
+      />
+    </>
+  );
+}
 
-      <Sheet open={catOpen} onOpenChange={setCatOpen}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>Catégories de produits</SheetTitle>
-            <SheetDescription>Organisez votre catalogue par catégories.</SheetDescription>
-          </SheetHeader>
-          <div className="mt-6 flex gap-2">
-            <Input
-              value={newCategory.name}
-              onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-              placeholder="Nouvelle catégorie"
-              className="rounded-xl"
-              onKeyDown={(e) => e.key === "Enter" && addCategory()}
-            />
-            <Button className="rounded-xl" onClick={addCategory} disabled={createCategoryMutation.isPending}>
-              Ajouter
-            </Button>
-          </div>
-          <ul className="mt-2 space-y-2">
-            {categories.map((c: ApiServiceCategory) => (
-              <li key={c.id} className="flex items-center justify-between rounded-xl border border-border/60 px-3 py-2 text-sm">
-                <span className="flex items-center gap-2">
-                  <span className="size-2.5 rounded-full" style={{ background: c.color ?? "#1565C6" }} />
-                  {c.name}
-                </span>
-                <Button variant="ghost" size="icon" className="size-7 rounded-lg text-destructive hover:text-destructive" onClick={() => removeCategory(c.id)}>
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </li>
+function RapportTab() {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+
+  const { data: report, isLoading, isError } = useQuery({
+    queryKey: ["stock-report", year, month],
+    queryFn: () => getStockReport(year, month),
+  });
+
+  const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - i);
+  const items: ApiStockReportItem[] = report?.items ?? [];
+
+  return (
+    <>
+      {isError ? (
+        <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          Impossible de charger le rapport de stock. Vérifiez que le serveur backend est démarré.
+        </div>
+      ) : null}
+
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+          <SelectTrigger className="h-10 w-[150px] rounded-xl">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MONTHS.map((label, idx) => (
+              <SelectItem key={label} value={String(idx + 1)}>
+                {label}
+              </SelectItem>
             ))}
-          </ul>
-          <SheetFooter className="mt-6">
-            <Button className="rounded-xl" onClick={() => setCatOpen(false)}>
-              Fermer
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+          </SelectContent>
+        </Select>
+        <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+          <SelectTrigger className="h-10 w-[110px] rounded-xl">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {years.map((y) => (
+              <SelectItem key={y} value={String(y)}>
+                {y}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      <DetailSheet
-        open={!!viewingId}
-        onOpenChange={(o) => !o && setViewingId(null)}
-        icon={<Layers className="size-5 text-ocean" />}
-        title={viewing?.name ?? ""}
-        subtitle="Détail du produit"
-        footer={
-          viewing ? (
-            <Button
-              className="w-full rounded-xl"
-              onClick={() => {
-                openEdit(viewing);
-                setViewingId(null);
-              }}
-            >
-              <Pencil className="mr-1.5 size-4" /> Modifier
-            </Button>
-          ) : null
-        }
-      >
-        {viewing ? (
-          <>
-            <DetailField label="Nom" value={viewing.name} />
-            <DetailField label="Catégorie" value={categoryById(viewing.categoryId)?.name} />
-            <DetailField label="Référence" value={viewing.reference} />
-            <DetailField label="Prix" value={formatMoney(viewing.price, viewing.currency)} />
-            <DetailField label="Description" value={viewing.description} />
-            <DetailField label="Stock" value={viewing.stockQuantity} />
-            <DetailField label="Coût moyen pondéré (CMP)" value={formatMoney(viewing.averageCost, viewing.currency)} />
-            <DetailField label="Valeur du stock" value={formatMoney(viewing.stockValue, viewing.currency)} />
-            <DetailField label="Ajouté le" value={viewing.created?.slice(0, 10)} />
-          </>
-        ) : null}
-      </DetailSheet>
+      <div className="glass rounded-2xl">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr className="text-left text-xs tracking-wide text-muted-foreground uppercase">
+                <th className="px-4 py-3 font-semibold">Article</th>
+                <th className="px-4 py-3 text-right font-semibold">Quantité</th>
+                <th className="px-4 py-3 text-right font-semibold">PU HT</th>
+                <th className="px-4 py-3 text-right font-semibold">Total HT</th>
+                <th className="px-4 py-3 text-right font-semibold">PU TTC</th>
+                <th className="px-4 py-3 text-right font-semibold">Total TTC</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.productId} className="border-t border-border/50 transition-colors hover:bg-ice/40 dark:hover:bg-white/5">
+                  <td className="px-4 py-3 align-middle font-medium">{item.article}</td>
+                  <td className="px-4 py-3 text-right align-middle font-semibold">{item.quantite}</td>
+                  <td className="px-4 py-3 text-right align-middle text-sm">{formatMoney(item.puHT, "TND")}</td>
+                  <td className="px-4 py-3 text-right align-middle text-sm font-medium">{formatMoney(item.totalHT, "TND")}</td>
+                  <td className="px-4 py-3 text-right align-middle text-sm">{formatMoney(item.puTTC, "TND")}</td>
+                  <td className="px-4 py-3 text-right align-middle font-semibold text-gradient-ocean">
+                    {formatMoney(item.totalTTC, "TND")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            {items.length > 0 ? (
+              <tfoot>
+                <tr className="border-t-2 border-border/70 bg-ice/30 dark:bg-white/5">
+                  <td className="px-4 py-3 font-semibold" colSpan={3}>
+                    Totaux
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatMoney(report?.totalHT ?? 0, "TND")}</td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3 text-right font-semibold text-gradient-ocean">{formatMoney(report?.totalTTC ?? 0, "TND")}</td>
+                </tr>
+              </tfoot>
+            ) : null}
+          </table>
+          {items.length === 0 ? (
+            <EmptyState
+              title={isLoading ? "Chargement…" : "Aucun stock à cette date"}
+              description="Essayez un autre mois ou une autre année."
+            />
+          ) : null}
+        </div>
+      </div>
 
-      <Sheet open={!!ledgerProduct} onOpenChange={(o) => !o && setLedgerProduct(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>Mouvements de stock</SheetTitle>
-            <SheetDescription>{ledgerProduct?.name} — historique complet, du plus récent au plus ancien.</SheetDescription>
-          </SheetHeader>
-          <div className="mt-6 space-y-2">
-            {movementsLoading ? (
-              <p className="text-sm text-muted-foreground">Chargement…</p>
-            ) : movements.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun mouvement enregistré.</p>
-            ) : (
-              movements.map((m) => (
-                <div key={m.id} className="rounded-xl border border-border/60 p-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{movementLabels[m.type]}</span>
-                    <span className={cn("font-semibold", m.quantityDelta >= 0 ? "text-success" : "text-destructive")}>
-                      {m.quantityDelta >= 0 ? "+" : ""}
-                      {m.quantityDelta}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>
-                      {m.quantityBefore} → {m.quantityAfter} unités
-                    </span>
-                    <span>{new Date(m.created).toLocaleString("fr-FR")}</span>
-                  </div>
-                  {m.reason ? <p className="mt-1.5 text-xs text-muted-foreground">Motif : {m.reason}</p> : null}
-                </div>
-              ))
-            )}
+      {items.length > 0 ? (
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          <div className="glass rounded-2xl p-5">
+            <p className="text-sm text-muted-foreground">Total HT</p>
+            <p className="mt-2 text-2xl font-semibold">{formatMoney(report?.totalHT ?? 0, "TND")}</p>
           </div>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={!!adjustingProduct} onOpenChange={(o) => !o && setAdjustingProduct(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>Ajuster le stock</SheetTitle>
-            <SheetDescription>{adjustingProduct?.name} — correction d'inventaire (quantité comptée).</SheetDescription>
-          </SheetHeader>
-          <div className="mt-6 grid gap-4">
-            <div className="space-y-2">
-              <Label>Quantité actuelle</Label>
-              <p className="text-sm text-muted-foreground">{adjustingProduct?.stockQuantity}</p>
-            </div>
-            <div className="space-y-2">
-              <Label>Nouvelle quantité (comptée)</Label>
-              <Input type="number" min={0} value={adjustQty} onChange={(e) => setAdjustQty(Number(e.target.value))} className="rounded-xl" />
-            </div>
-            <div className="space-y-2">
-              <Label>Motif (obligatoire)</Label>
-              <Textarea
-                value={adjustReason}
-                onChange={(e) => setAdjustReason(e.target.value)}
-                className="rounded-xl"
-                placeholder="Ex. Inventaire physique du 19/11/2026"
-              />
-            </div>
+          <div className="glass rounded-2xl p-5">
+            <p className="text-sm text-muted-foreground">Total TVA</p>
+            <p className="mt-2 text-2xl font-semibold">{formatMoney(report?.totalTVA ?? 0, "TND")}</p>
           </div>
-          <SheetFooter className="mt-6">
-            <Button variant="outline" className="rounded-xl" onClick={() => setAdjustingProduct(null)}>
-              Annuler
-            </Button>
-            <Button className="rounded-xl" onClick={saveAdjust} disabled={adjustMutation.isPending}>
-              Enregistrer
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
-    </AdminLayout>
+          <div className="glass rounded-2xl p-5">
+            <p className="text-sm text-muted-foreground">Total TTC</p>
+            <p className="mt-2 text-2xl font-semibold text-gradient-ocean">{formatMoney(report?.totalTTC ?? 0, "TND")}</p>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

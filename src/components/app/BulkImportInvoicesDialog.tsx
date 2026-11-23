@@ -28,7 +28,7 @@ import {
 } from "@/lib/api";
 import { apiClientLabel } from "@/lib/invoice-adapter";
 
-const STATUSES: ApiPaymentStatus[] = ["impayé", "Partiellement payé", "Payé", "Retard"];
+const STATUSES: ApiPaymentStatus[] = ["impayé", "Partiellement payé", "Payé"];
 
 type FileRow = {
   id: string;
@@ -163,7 +163,7 @@ export function BulkImportInvoicesDialog({
         <DialogHeader>
           <DialogTitle>Import en masse</DialogTitle>
           <DialogDescription>
-            Réimportez vos anciennes factures pour une période donnée — utile après avoir souscrit à un plan pour
+            Réimportez vos anciennes factures pour une période donnée, utile après avoir souscrit à un plan pour
             reprendre votre historique. Choisissez vos scans (image ou PDF), une ligne apparaît par fichier.
           </DialogDescription>
         </DialogHeader>

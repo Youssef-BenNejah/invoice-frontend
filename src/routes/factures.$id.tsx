@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Copy, Download, FileCheck2, HandCoins, Mail, Pencil, Trash2, X } from "lucide-react";
+import { ArrowLeft, Copy, Download, FileCheck2, HandCoins, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { AdminLayout, PageHeader } from "@/components/app/AdminLayout";
 import { DocumentPreview } from "@/components/app/DocumentPreview";
@@ -20,15 +20,14 @@ import {
   getInvoiceById,
   getMyCompany,
   listPaymentsForInvoice,
-  sendInvoiceByEmail,
 } from "@/lib/api";
-import { apiClientLabel, apiInvoiceNumberLabel } from "@/lib/invoice-adapter";
+import { apiPartyLabel, apiInvoiceNumberLabel } from "@/lib/invoice-adapter";
 import { requireAuth } from "@/lib/route-guards";
 
 export const Route = createFileRoute("/factures/$id")({
   beforeLoad: requireAuth,
   head: ({ params }) => ({
-    meta: [{ title: `Facture ${params.id} — Harmonie-dev` }],
+    meta: [{ title: `Facture ${params.id}` }],
   }),
   component: FactureDetail,
 });
@@ -44,7 +43,6 @@ function FactureDetail() {
 
   const [payOpen, setPayOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [sending, setSending] = useState(false);
 
   const onError = (err: unknown, fallback: string) => {
     const message = err instanceof ApiError ? err.message : fallback;
@@ -104,6 +102,8 @@ function FactureDetail() {
   const progress = invoice.total > 0 ? Math.round((invoice.paidAmount / invoice.total) * 100) : 0;
   const totalHT = invoice.subtotal - invoice.taxAmount - invoice.timbre;
   const client = invoice.client;
+  const fournisseur = invoice.fournisseur;
+  const isAchat = invoice.type === "Achat";
 
   const downloadPdf = async () => {
     setDownloading(true);
@@ -117,24 +117,11 @@ function FactureDetail() {
     }
   };
 
-  const sendByEmail = async () => {
-    setSending(true);
-    try {
-      await sendInvoiceByEmail(invoice.id);
-      toast.success("Facture envoyée par e-mail", { description: apiClientLabel(invoice.client) });
-    } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Échec de l'envoi";
-      toast.error("Échec de l'envoi par e-mail", { description: message });
-    } finally {
-      setSending(false);
-    }
-  };
-
   return (
     <AdminLayout>
       <PageHeader
         title={apiInvoiceNumberLabel(invoice)}
-        subtitle={`${invoice.status} ${invoice.type === "Proforma" ? "(proforma)" : ""} pour ${apiClientLabel(invoice.client)}`}
+        subtitle={`${invoice.status} ${invoice.type === "Proforma" ? "(proforma)" : ""} ${isAchat ? "de" : "pour"} ${apiPartyLabel(invoice)}`}
         actions={
           <>
             <Button variant="outline" className="rounded-xl" asChild>
@@ -146,9 +133,6 @@ function FactureDetail() {
               <Link to="/factures/nouvelle" search={{ type: invoice.type, id: invoice.id }}>
                 <Pencil className="mr-1.5 size-4" /> Modifier
               </Link>
-            </Button>
-            <Button variant="outline" className="rounded-xl" onClick={sendByEmail} disabled={sending}>
-              <Mail className="mr-1.5 size-4" /> {sending ? "Envoi…" : "Envoyer"}
             </Button>
             <Button className="rounded-xl" onClick={downloadPdf} disabled={downloading}>
               <Download className="mr-1.5 size-4" /> {downloading ? "Génération…" : "Télécharger PDF"}
@@ -164,7 +148,7 @@ function FactureDetail() {
               {company?.logoUrl ? (
                 <img src={company.logoUrl} alt={company.name} className="size-14 shrink-0 rounded-xl object-cover" />
               ) : (
-                <img src="/logo-mark.png" alt="Harmonie-dev" className="size-14 shrink-0" />
+                <img src="/logo-mark.png" alt="Invoxa" className="size-14 shrink-0" />
               )}
               <div>
                 <p className="text-lg font-semibold">{company?.name || "Votre entreprise"}</p>
@@ -178,25 +162,29 @@ function FactureDetail() {
               <p className="text-2xl font-semibold text-gradient-ocean">{invoice.status}</p>
               <p className="mt-1 text-sm text-muted-foreground">N° {apiInvoiceNumberLabel(invoice)}</p>
               <p className="text-sm text-muted-foreground">Émise le {formatDate(invoice.date)}</p>
-              <p className="text-sm text-muted-foreground">Échéance {formatDate(invoice.expirationDate)}</p>
             </div>
           </div>
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Facturé à</p>
-              <p className="mt-1 font-semibold">{apiClientLabel(invoice.client)}</p>
-              {client.type === "PERSON" ? (
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{isAchat ? "Fournisseur" : "Facturé à"}</p>
+              <p className="mt-1 font-semibold">{apiPartyLabel(invoice)}</p>
+              {fournisseur ? (
+                <>
+                  {fournisseur.fisc ? <p className="text-sm text-muted-foreground">MF : {fournisseur.fisc}</p> : null}
+                  {fournisseur.adresse ? <p className="text-sm text-muted-foreground">{fournisseur.adresse}</p> : null}
+                </>
+              ) : client?.type === "PERSON" ? (
                 <>
                   {client.person?.cin ? <p className="text-sm text-muted-foreground">CIN : {client.person.cin}</p> : null}
                   {client.person?.adresse ? <p className="text-sm text-muted-foreground">{client.person.adresse}</p> : null}
                 </>
-              ) : (
+              ) : client ? (
                 <>
                   {client.entreprise?.fisc ? <p className="text-sm text-muted-foreground">MF : {client.entreprise.fisc}</p> : null}
                   {client.entreprise?.adresse ? <p className="text-sm text-muted-foreground">{client.entreprise.adresse}</p> : null}
                 </>
-              )}
+              ) : null}
             </div>
             <div className="flex gap-2">
               <StatusBadge status={invoice.status} />
@@ -211,23 +199,23 @@ function FactureDetail() {
                   <th className="px-4 py-3 font-semibold">Réf</th>
                   <th className="px-4 py-3 font-semibold">Article</th>
                   <th className="px-4 py-3 text-center font-semibold">Qté</th>
-                  <th className="px-4 py-3 text-right font-semibold">Prix</th>
-                  <th className="px-4 py-3 text-right font-semibold">Taxe</th>
-                  <th className="px-4 py-3 text-right font-semibold">Total</th>
+                  <th className="px-4 py-3 text-right font-semibold">PU</th>
+                  <th className="px-4 py-3 text-right font-semibold">TVA</th>
+                  <th className="px-4 py-3 text-right font-semibold">Total HT</th>
                 </tr>
               </thead>
               <tbody>
                 {invoice.items.map((l) => (
                   <tr key={l.id} className="border-t border-border/50">
-                    <td className="px-4 py-3 text-muted-foreground">{l.ref || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{l.ref || ""}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium">{l.article}</p>
                       <p className="text-xs text-muted-foreground">{l.description}</p>
                     </td>
                     <td className="px-4 py-3 text-center text-muted-foreground">{l.quantity}</td>
                     <td className="px-4 py-3 text-right text-muted-foreground">{formatMoney(l.price, invoice.currency.code)}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">{l.taxName ? `${l.taxName} (${l.taxRate}%)` : "—"}</td>
-                    <td className="px-4 py-3 text-right font-semibold">{formatMoney(l.total, invoice.currency.code)}</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">{l.taxName ? `${l.taxName} (${l.taxRate}%)` : ""}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{formatMoney(l.quantity * l.price, invoice.currency.code)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -240,7 +228,7 @@ function FactureDetail() {
               <span className="font-medium">{formatMoney(totalHT, invoice.currency.code)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Total taxes</span>
+              <span className="text-muted-foreground">Total TVA</span>
               <span className="font-medium">{formatMoney(invoice.taxAmount, invoice.currency.code)}</span>
             </div>
             <div className="flex justify-between">
@@ -257,21 +245,6 @@ function FactureDetail() {
           <p className="mt-6 text-sm text-muted-foreground italic">
             La présente facture est arrêtée à la somme de {amountInWords(invoice.total, invoice.currency.name)}.
           </p>
-
-          {invoice.note ? (
-            <div className="mt-6 rounded-xl border border-border/60 bg-ice/40 p-4 text-sm dark:bg-white/5">
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Note</p>
-              <p className="mt-1">{invoice.note}</p>
-            </div>
-          ) : null}
-
-          <p className="mt-10 text-center text-xs text-muted-foreground">
-            Facture générée par ordinateur, valable sans signature ni cachet.
-          </p>
-          <div className="mt-4 flex items-center justify-center gap-1.5 border-t border-border/50 pt-4 text-xs text-muted-foreground">
-            <img src="/logo-mark.png" alt="" className="size-4" />
-            Généré avec Harmonie-dev
-          </div>
         </div>
 
         <div className="space-y-6">

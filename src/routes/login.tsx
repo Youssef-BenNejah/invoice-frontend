@@ -14,9 +14,9 @@ export const Route = createFileRoute("/login")({
   beforeLoad: redirectIfAuthenticated,
   head: () => ({
     meta: [
-      { title: "Connexion — Harmonie-dev" },
+      { title: "Connexion" },
       { name: "description", content: "Connectez-vous à votre espace de facturation Facture." },
-      { property: "og:title", content: "Connexion — Harmonie-dev" },
+      { property: "og:title", content: "Connexion" },
       { property: "og:description", content: "Accédez à vos factures, clients et rapports." },
     ],
   }),
@@ -36,7 +36,7 @@ function Login() {
     try {
       const user = await login(email, password, remember);
       toast.success("Connexion réussie", { description: `Bienvenue ${user.firstName ?? user.email}` });
-      navigate({ to: user.role === "ADMIN" ? "/superadmin" : "/tableau-de-bord" });
+      navigate({ to: user.role === "ADMIN" ? "/services" : "/personnes" });
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Impossible de se connecter au serveur";
       toast.error("Connexion impossible", { description: message });

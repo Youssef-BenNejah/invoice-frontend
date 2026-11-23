@@ -11,7 +11,7 @@ export const Route = createFileRoute("/paiements")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Paiements — Harmonie-dev" },
+      { title: "Paiements" },
       { name: "description", content: "Historique de tous les paiements enregistrés sur vos factures." },
     ],
   }),
@@ -57,7 +57,7 @@ function Paiements() {
 
       {isError ? (
         <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Impossible de charger les paiements — vérifiez que le serveur backend est démarré.
+          Impossible de charger les paiements. Vérifiez que le serveur backend est démarré.
         </div>
       ) : null}
 

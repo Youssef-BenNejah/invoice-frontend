@@ -28,7 +28,7 @@ export const Route = createFileRoute("/taxes")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Taxes — Harmonie-dev" },
+      { title: "Taxes" },
       { name: "description", content: "Configurez les taux de taxe applicables à vos factures." },
     ],
   }),
@@ -209,7 +209,7 @@ function Taxes() {
 
       {isError ? (
         <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Impossible de charger les taxes — vérifiez que le serveur backend est démarré.
+          Impossible de charger les taxes. Vérifiez que le serveur backend est démarré.
         </div>
       ) : null}
 

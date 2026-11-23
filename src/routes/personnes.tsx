@@ -35,7 +35,7 @@ export const Route = createFileRoute("/personnes")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Personnes — Harmonie-dev" },
+      { title: "Personnes" },
       { name: "description", content: "Gérez votre répertoire de contacts individuels." },
     ],
   }),
@@ -147,7 +147,7 @@ function Personnes() {
     },
     { key: "email", header: "E-mail", cell: (r) => <span className="text-muted-foreground">{r.email}</span> },
     { key: "telephone", header: "Téléphone", cell: (r) => <span className="text-muted-foreground">{r.telephone}</span> },
-    { key: "cin", header: "CIN", cell: (r) => <span className="text-muted-foreground">{r.cin || "—"}</span> },
+    { key: "cin", header: "CIN", cell: (r) => <span className="text-muted-foreground">{r.cin || ""}</span> },
     {
       key: "isClient",
       header: "Statut",
@@ -192,7 +192,7 @@ function Personnes() {
 
       {isError ? (
         <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Impossible de charger les personnes — vérifiez que le serveur backend est démarré.
+          Impossible de charger les personnes. Vérifiez que le serveur backend est démarré.
         </div>
       ) : null}
 
@@ -250,7 +250,7 @@ function Personnes() {
             <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
               Annuler
             </Button>
-            <Button className="rounded-xl" onClick={save} disabled={!form.nom || !form.prenom || saving}>
+            <Button className="rounded-xl" onClick={save} disabled={saving}>
               {saving ? "Enregistrement…" : "Enregistrer"}
             </Button>
           </SheetFooter>

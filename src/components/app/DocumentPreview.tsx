@@ -16,6 +16,15 @@ export function isPdfUrl(url: string) {
 }
 
 /**
+ * The desktop build's WebView2 doesn't reliably ship a built-in PDF viewer the way a full
+ * browser tab does — an <iframe src="*.pdf"> there just renders blank, with no error event to
+ * catch. Detect that shell so PDFs fall back to a rasterized image instead.
+ */
+function isTauriRuntime() {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+/**
  * For a Cloudinary-hosted document, asks Cloudinary to rasterize it to a PNG (first page/artboard)
  * instead of serving the original bytes — this is how a format the browser can't render directly
  * (e.g. a .ai/.psd file someone dropped in) still shows real content instead of a broken icon.
@@ -47,13 +56,17 @@ export function DocumentPreview({
   /** Tailwind height class for the preview area (img/iframe). Defaults to h-[420px]. */
   height?: string;
 }) {
-  const isPdf = isPdfProp ?? isPdfUrl(url);
-  const isKnownImage = isPdfProp === false || IMAGE_EXTENSIONS.includes(extensionOf(url));
+  const isPdfFile = isPdfProp ?? isPdfUrl(url);
   const rasterUrl = cloudinaryRasterUrl(url);
+  // The desktop app's WebView2 can't reliably render a PDF in an <iframe>, so treat it as an
+  // image there (rasterized by Cloudinary) instead of attempting the iframe viewer at all.
+  const rasterizeInstead = isPdfFile && isTauriRuntime() && !!rasterUrl;
+  const isPdf = isPdfFile && !rasterizeInstead;
+  const isKnownImage = !isPdfFile && (isPdfProp === false || IMAGE_EXTENSIONS.includes(extensionOf(url)));
 
   // Known image types load directly; anything else (no recognized extension, e.g. a .ai/.psd
-  // someone uploaded) starts straight on the Cloudinary-rasterized PNG since the raw file
-  // wouldn't render as an <img> anyway.
+  // someone uploaded, or a PDF being rasterized for the desktop app) starts straight on the
+  // Cloudinary-rasterized PNG since the raw file wouldn't render as an <img> anyway.
   const [imgSrc, setImgSrc] = useState(isKnownImage ? url : (rasterUrl ?? url));
   const [usedFallback, setUsedFallback] = useState(!isKnownImage);
   const [failed, setFailed] = useState(false);
@@ -89,7 +102,7 @@ export function DocumentPreview({
     <div className={cn("overflow-hidden rounded-xl border border-border/60 bg-muted/30", className)}>
       <div className="flex items-center justify-between border-b border-border/60 bg-background/60 px-3 py-1.5">
         <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <FileText className="size-3.5" /> {isPdf ? "Document PDF" : "Document"}
+          <FileText className="size-3.5" /> {isPdfFile ? "Document PDF" : "Document"}
         </span>
         <div className="flex items-center gap-3">
           {!failed ? (
@@ -116,7 +129,7 @@ export function DocumentPreview({
 
       <Dialog open={fullscreen} onOpenChange={setFullscreen}>
         <DialogContent className="flex h-[92vh] w-[95vw] max-w-6xl flex-col gap-2 overflow-hidden p-3">
-          <DialogTitle className="sr-only">{isPdf ? "Document PDF" : "Document"}</DialogTitle>
+          <DialogTitle className="sr-only">{isPdfFile ? "Document PDF" : "Document"}</DialogTitle>
           <div className="flex-1 overflow-auto rounded-lg bg-muted/30">{content("h-full")}</div>
         </DialogContent>
       </Dialog>

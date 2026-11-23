@@ -27,7 +27,7 @@ export const Route = createFileRoute("/superadmin_/plans")({
   beforeLoad: requireSuperAdmin,
   head: () => ({
     meta: [
-      { title: "Plans d'abonnement — Harmonie-dev" },
+      { title: "Plans d'abonnement" },
       { name: "description", content: "Configurez les plans d'abonnement et leurs limites d'utilisation." },
     ],
   }),
@@ -269,7 +269,7 @@ function SuperAdminPlans() {
 
       {isError ? (
         <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Impossible de charger les plans — vérifiez que le serveur backend est démarré.
+          Impossible de charger les plans. Vérifiez que le serveur backend est démarré.
         </div>
       ) : null}
 

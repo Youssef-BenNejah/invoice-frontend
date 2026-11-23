@@ -26,7 +26,7 @@ export const Route = createFileRoute("/fournisseurs")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Fournisseurs — Harmonie-dev" },
+      { title: "Fournisseurs" },
       { name: "description", content: "Vos fournisseurs pour les achats qui alimentent le stock." },
     ],
   }),
@@ -133,12 +133,12 @@ function Fournisseurs() {
     {
       key: "email",
       header: "E-mail",
-      cell: (r) => <span className="text-sm text-muted-foreground">{r.email || "—"}</span>,
+      cell: (r) => <span className="text-sm text-muted-foreground">{r.email || ""}</span>,
     },
     {
       key: "telephone",
       header: "Téléphone",
-      cell: (r) => <span className="text-sm text-muted-foreground">{r.telephone || "—"}</span>,
+      cell: (r) => <span className="text-sm text-muted-foreground">{r.telephone || ""}</span>,
     },
     {
       key: "actions",
@@ -174,7 +174,7 @@ function Fournisseurs() {
 
       {isError ? (
         <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Impossible de charger les fournisseurs — vérifiez que le serveur backend est démarré.
+          Impossible de charger les fournisseurs. Vérifiez que le serveur backend est démarré.
         </div>
       ) : null}
 

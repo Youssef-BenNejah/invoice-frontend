@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { FileUp, Loader2, Mail, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import { FileUp, Loader2, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { AdminLayout, PageHeader } from "@/components/app/AdminLayout";
+import { ArticleSelect } from "@/components/app/ArticleSelect";
 import { DocumentPreview } from "@/components/app/DocumentPreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatMoney, type InvoiceStatus } from "@/lib/mock-data";
@@ -19,6 +19,7 @@ import {
   getInvoiceById,
   listClients,
   listCurrencies,
+  listFournisseurs,
   listServices,
   listTaxes,
   updateInvoiceApi,
@@ -28,14 +29,14 @@ import {
 import { apiClientLabel } from "@/lib/invoice-adapter";
 import { requireAuth } from "@/lib/route-guards";
 
-const searchSchema = z.object({ type: z.enum(["Standard", "Proforma"]).optional(), id: z.string().optional() });
+const searchSchema = z.object({ type: z.enum(["Standard", "Proforma", "Achat"]).optional(), id: z.string().optional() });
 
 export const Route = createFileRoute("/factures/nouvelle")({
   validateSearch: searchSchema,
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Nouvelle facture — Harmonie-dev" },
+      { title: "Nouvelle facture" },
       { name: "description", content: "Créez une nouvelle facture standard ou proforma avec calcul automatique." },
     ],
   }),
@@ -62,6 +63,7 @@ function NouvelleFacture() {
   const queryClient = useQueryClient();
 
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: listClients });
+  const { data: fournisseurs = [] } = useQuery({ queryKey: ["fournisseurs"], queryFn: listFournisseurs });
   const { data: currencies = [] } = useQuery({ queryKey: ["currencies"], queryFn: listCurrencies });
   const { data: taxes = [] } = useQuery({ queryKey: ["taxes"], queryFn: listTaxes });
   const { data: services = [] } = useQuery({ queryKey: ["services"], queryFn: listServices });
@@ -72,32 +74,29 @@ function NouvelleFacture() {
   });
 
   const isProforma = editing ? editing.type === "Proforma" : type === "Proforma";
+  const isAchat = editing ? editing.type === "Achat" : type === "Achat";
 
   const [mode, setMode] = useState<"standard" | "import">("standard");
   const [status, setStatus] = useState<InvoiceStatus>("Facture");
   const [client, setClient] = useState("");
+  const [fournisseur, setFournisseur] = useState("");
   const [devise, setDevise] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [expirationDate, setExpirationDate] = useState("");
-  const [timbre, setTimbre] = useState(0);
-  const [note, setNote] = useState("");
+  const [timbre, setTimbre] = useState(1);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [importMontant, setImportMontant] = useState("");
   const [items, setItems] = useState<Line[]>([emptyLine()]);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     if (editing && !initialized) {
       setStatus(editing.status);
-      setClient(editing.client.id);
+      if (editing.client) setClient(editing.client.id);
+      if (editing.fournisseur) setFournisseur(editing.fournisseur.id);
       setDevise(editing.currency.id);
       setDate(editing.date);
-      setExpirationDate(editing.expirationDate);
       setTimbre(editing.timbre);
-      setNote(editing.note ?? "");
       setFileUrl(editing.factureImage ?? null);
-      if (editing.factureImage) setImportMontant(editing.total ? String(editing.total) : "");
       setItems(
         editing.items.map((it) => ({
           id: it.id,
@@ -119,11 +118,22 @@ function NouvelleFacture() {
     if (!id && !devise && currencies[0]) setDevise(currencies[0].id);
   }, [id, devise, currencies]);
   useEffect(() => {
-    if (!id && !client && clients[0]) setClient(clients[0].id);
-  }, [id, client, clients]);
+    if (!id && !isAchat && !client && clients[0]) setClient(clients[0].id);
+  }, [id, isAchat, client, clients]);
+  useEffect(() => {
+    if (!id && isAchat && !fournisseur && fournisseurs[0]) setFournisseur(fournisseurs[0].id);
+  }, [id, isAchat, fournisseur, fournisseurs]);
+
+  const defaultTaxId = (taxes.find((t) => t.isDefault) ?? taxes.find((t) => t.taxvalue === 19))?.id ?? "";
+  useEffect(() => {
+    if (!id && defaultTaxId) {
+      setItems((prev) => prev.map((it) => (it.taxId ? it : { ...it, taxId: defaultTaxId })));
+    }
+  }, [id, defaultTaxId]);
 
   const selectedDevise = currencies.find((d) => d.id === devise);
   const selectedClient = clients.find((c) => c.id === client);
+  const selectedFournisseur = fournisseurs.find((f) => f.id === fournisseur);
 
   const computedItems = useMemo(
     () =>
@@ -136,19 +146,38 @@ function NouvelleFacture() {
     [items, taxes],
   );
 
-  const importAmount = Number(importMontant.replace(",", ".")) || 0;
-  const sousTotalHT = mode === "import" ? importAmount : computedItems.reduce((s, l) => s + l.base, 0);
-  const totalTaxes = mode === "import" ? 0 : Math.round(computedItems.reduce((s, l) => s + l.taxAmount, 0) * 100) / 100;
-  const totalTTC = mode === "import" ? importAmount : sousTotalHT + totalTaxes + timbre;
+  const sousTotalHT = computedItems.reduce((s, l) => s + l.base, 0);
+  const totalTaxes = Math.round(computedItems.reduce((s, l) => s + l.taxAmount, 0) * 100) / 100;
+  const totalTTC = sousTotalHT + totalTaxes + timbre;
 
-  const addItem = () => setItems((l) => [...l, emptyLine()]);
+  const addItem = () => setItems((l) => [...l, { ...emptyLine(), taxId: defaultTaxId }]);
   const removeItem = (id: string) => setItems((l) => (l.length > 1 ? l.filter((x) => x.id !== id) : l));
   const updateItem = (id: string, patch: Partial<Line>) => setItems((l) => l.map((x) => (x.id === id ? { ...x, ...patch } : x)));
 
-  const applyService = (id: string, serviceId: string) => {
+  // Picking an article from stock fills the next empty line, or appends a new one if none is free —
+  // the selection itself lives above the table, not cramped into each line's own row.
+  const addItemFromService = (serviceId: string) => {
     const s = services.find((p) => p.id === serviceId);
     if (!s) return;
-    updateItem(id, { productId: s.id, ref: s.reference ?? "", article: s.name, description: s.description ?? "", price: s.price });
+    // A vente line defaults to the article's cost price plus its margin, not its raw base price.
+    const sellingPrice = Math.round((s.prixAchat + (s.prixAchat * s.margeGain) / 100) * 100) / 100;
+    const filled: Partial<Line> = {
+      productId: s.id,
+      ref: s.reference ?? "",
+      article: s.name,
+      description: s.description ?? "",
+      // An achat line defaults to the article's last known purchase cost (still editable); a vente
+      // line defaults to its computed selling price instead.
+      price: isAchat ? s.prixAchat : sellingPrice,
+      taxId: s.defaultTaxId || defaultTaxId,
+    };
+    setItems((prev) => {
+      const emptyIndex = prev.findIndex((x) => !x.article && !x.productId);
+      if (emptyIndex !== -1) {
+        return prev.map((x, i) => (i === emptyIndex ? { ...x, ...filled } : x));
+      }
+      return [...prev, { ...emptyLine(), taxId: defaultTaxId, ...filled }];
+    });
   };
 
   const onError = (err: unknown, fallback: string) => {
@@ -159,9 +188,12 @@ function NouvelleFacture() {
   const createMutation = useMutation({
     mutationFn: createInvoice,
     onSuccess: () => {
-      toast.success("Facture enregistrée", { description: "Vous pouvez la retrouver dans la liste des factures." });
+      toast.success("Facture enregistrée", {
+        description: isAchat ? "Le stock a été mis à jour." : "Vous pouvez la retrouver dans la liste des factures.",
+      });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      navigate({ to: isProforma ? "/factures-achats" : "/factures-ventes" });
+      if (isAchat) queryClient.invalidateQueries({ queryKey: ["services"] });
+      navigate({ to: isAchat || isProforma ? "/factures-achats" : "/factures-ventes" });
     },
     onError: (err) => onError(err, "Échec de l'enregistrement"),
   });
@@ -169,16 +201,20 @@ function NouvelleFacture() {
   const updateMutation = useMutation({
     mutationFn: ({ invId, payload }: { invId: string; payload: Parameters<typeof updateInvoiceApi>[1] }) => updateInvoiceApi(invId, payload),
     onSuccess: () => {
-      toast.success("Facture mise à jour", { description: "Vous pouvez la retrouver dans la liste des factures." });
+      toast.success("Facture mise à jour", {
+        description: isAchat ? "Le stock a été mis à jour." : "Vous pouvez la retrouver dans la liste des factures.",
+      });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       if (editing) queryClient.invalidateQueries({ queryKey: ["invoice", editing.id] });
-      navigate({ to: isProforma ? "/factures-achats" : "/factures-ventes" });
+      if (isAchat) queryClient.invalidateQueries({ queryKey: ["services"] });
+      navigate({ to: isAchat || isProforma ? "/factures-achats" : "/factures-ventes" });
     },
     onError: (err) => onError(err, "Échec de la mise à jour"),
   });
 
   const buildPayload = () => {
-    if (!selectedClient || !selectedDevise) return null;
+    if (isAchat ? !selectedFournisseur : !selectedClient) return null;
+    if (!selectedDevise) return null;
     const finalItems: InvoiceItemPayload[] = items.map((l) => ({
       ...(l.productId ? { productId: l.productId } : {}),
       ref: l.ref,
@@ -188,40 +224,28 @@ function NouvelleFacture() {
       price: l.price,
       taxId: l.taxId,
     }));
-    // Import mode attaches a scanned document instead of re-entering line items — the backend
-    // still requires at least one item, so stand in a single placeholder carrying the total the
-    // user typed in instead of the full line-item breakdown.
-    const importPlaceholderItem: InvoiceItemPayload = {
-      article: "Document importé",
-      quantity: 1,
-      price: Number(importMontant.replace(",", ".")) || 0,
-    };
     return {
-      clientId: selectedClient.id,
+      ...(isAchat ? { fournisseurId: selectedFournisseur!.id } : { clientId: selectedClient!.id }),
       currencyId: selectedDevise.id,
       status,
-      type: (isProforma ? "Proforma" : "Standard") as "Standard" | "Proforma",
+      type: (isAchat ? "Achat" : isProforma ? "Proforma" : "Standard") as "Standard" | "Proforma" | "Achat",
       date,
-      expirationDate,
-      note,
       timbre,
-      items: mode === "import" ? [importPlaceholderItem] : finalItems,
+      items: finalItems,
       factureImage: mode === "import" ? fileUrl : null,
     };
   };
 
   const persist = () => {
     const payload = buildPayload();
-    if (!payload || (mode === "standard" && !payload.items.every((it) => it.article))) {
-      toast.error("Formulaire incomplet", { description: "Vérifiez le client, la devise et les articles." });
+    if (!payload || !payload.items.every((it) => it.article)) {
+      toast.error("Formulaire incomplet", {
+        description: isAchat ? "Vérifiez le fournisseur, la devise et les articles." : "Vérifiez le client, la devise et les articles.",
+      });
       return;
     }
     if (mode === "import" && !payload.factureImage) {
       toast.error("Document manquant", { description: "Importez une image ou un PDF avant d'enregistrer." });
-      return;
-    }
-    if (mode === "import" && (!importMontant || Number.isNaN(Number(importMontant.replace(",", "."))))) {
-      toast.error("Montant manquant", { description: "Indiquez le montant total de la facture importée." });
       return;
     }
     if (editing) {
@@ -244,7 +268,6 @@ function NouvelleFacture() {
     }
   };
 
-  const sendEmail = () => toast("Enregistrez d'abord la facture, puis envoyez-la par e-mail depuis sa fiche.");
   const downloadPdf = () => toast("Enregistrez d'abord la facture, puis téléchargez le PDF depuis sa fiche.");
 
   const saving = createMutation.isPending || updateMutation.isPending;
@@ -252,8 +275,16 @@ function NouvelleFacture() {
   return (
     <AdminLayout>
       <PageHeader
-        title={editing ? `Modifier ${isProforma ? "la proforma" : "la facture"}` : isProforma ? "Nouvelle facture proforma" : "Nouvelle facture"}
-        subtitle="Renseignez les informations et les lignes de facturation."
+        title={
+          editing
+            ? `Modifier ${isAchat ? "l'achat" : isProforma ? "la proforma" : "la facture"}`
+            : isAchat
+              ? "Nouvelle facture d'achat"
+              : isProforma
+                ? "Nouvelle facture proforma"
+                : "Nouvelle facture"
+        }
+        subtitle={isAchat ? "Le stock sera mis à jour dès l'enregistrement." : "Renseignez les informations et les lignes de facturation."}
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -268,19 +299,37 @@ function NouvelleFacture() {
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Client</Label>
-                <Select value={client} onValueChange={setClient}>
-                  <SelectTrigger className="h-10 rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {apiClientLabel(c)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>{isAchat ? "Fournisseur" : "Client"}</Label>
+                {isAchat ? (
+                  <Select value={fournisseur} onValueChange={setFournisseur}>
+                    <SelectTrigger className="h-10 rounded-xl">
+                      <SelectValue placeholder="Choisir un fournisseur…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fournisseurs.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.nom}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select value={client} onValueChange={setClient}>
+                    <SelectTrigger className="h-10 rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {apiClientLabel(c)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {isAchat && fournisseurs.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Aucun fournisseur — créez-en un depuis la page Fournisseurs.</p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Type de document</Label>
@@ -320,129 +369,14 @@ function NouvelleFacture() {
                 <Label>Date</Label>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 rounded-xl" />
               </div>
-              <div className="space-y-2">
-                <Label>Date d'échéance</Label>
-                <Input type="date" value={expirationDate} onChange={(e) => setExpirationDate(e.target.value)} className="h-10 rounded-xl" />
-              </div>
             </div>
           </div>
 
-          {mode === "standard" ? (
-            <div className="glass overflow-hidden rounded-2xl">
-              <div className="flex items-center justify-between border-b border-border/60 p-5">
-                <h2 className="text-base font-semibold">Lignes de facturation</h2>
-                <Button size="sm" variant="outline" className="rounded-xl" onClick={addItem}>
-                  <Plus className="mr-1 size-4" /> Ajouter une ligne
-                </Button>
-              </div>
-              <div className="divide-y divide-border/50">
-                {computedItems.map((l) => (
-                  <div key={l.id} className="grid gap-3 p-4 sm:grid-cols-12 sm:items-end">
-                    <div className="space-y-1.5 sm:col-span-3">
-                      <Label className="text-xs">Article</Label>
-                      <Select value={l.productId} onValueChange={(v) => applyService(l.id, v)}>
-                        <SelectTrigger className="h-9 rounded-lg text-sm">
-                          <SelectValue placeholder="Lier un produit du stock…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {services.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.name} {s.stockQuantity > 0 || s.averageCost > 0 ? `(stock: ${s.stockQuantity})` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        value={l.article}
-                        onChange={(e) => updateItem(l.id, { article: e.target.value, productId: "" })}
-                        placeholder="Nom de l'article"
-                        className="mt-1 h-9 rounded-lg text-sm"
-                      />
-                      {l.productId ? <p className="text-[11px] text-ocean dark:text-sky">Lié au stock — la vente décrémentera cet article.</p> : null}
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-1">
-                      <Label className="text-xs">Réf</Label>
-                      <Input value={l.ref} onChange={(e) => updateItem(l.id, { ref: e.target.value })} className="h-9 rounded-lg text-sm" />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs">Description</Label>
-                      <Input
-                        value={l.description}
-                        onChange={(e) => updateItem(l.id, { description: e.target.value })}
-                        className="h-9 rounded-lg text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-1">
-                      <Label className="text-xs">Qté</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={l.quantity}
-                        onChange={(e) => updateItem(l.id, { quantity: Number(e.target.value) })}
-                        className="h-9 rounded-lg text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs">Prix</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={l.price}
-                        onChange={(e) => updateItem(l.id, { price: Number(e.target.value) })}
-                        className="h-9 rounded-lg text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs">Taxe</Label>
-                      <Select value={l.taxId} onValueChange={(v) => updateItem(l.id, { taxId: v })}>
-                        <SelectTrigger className="h-9 rounded-lg text-sm">
-                          <SelectValue placeholder="Aucune" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {taxes.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.name} ({t.taxvalue}%)
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 sm:col-span-1">
-                      <span className="text-sm font-semibold">{formatMoney(l.lineTotal, selectedDevise?.code)}</span>
-                      <Button variant="ghost" size="icon" className="size-8 shrink-0 rounded-lg text-destructive hover:text-destructive" onClick={() => removeItem(l.id)}>
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="border-t border-border/60 p-5">
-                <Label>Note</Label>
-                <Textarea value={note} onChange={(e) => setNote(e.target.value)} className="mt-2 rounded-xl" placeholder="Conditions de paiement, remarques…" />
-              </div>
-            </div>
-          ) : (
+          {mode === "import" ? (
             <div className="glass space-y-4 rounded-2xl p-8">
               {fileUrl ? (
                 <div className="space-y-3">
                   <DocumentPreview url={fileUrl} />
-                  <div className="max-w-xs space-y-1.5">
-                    <Label>Montant total</Label>
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.001"
-                        value={importMontant}
-                        onChange={(e) => setImportMontant(e.target.value)}
-                        placeholder="0.000"
-                        className="h-10 rounded-xl pr-14"
-                      />
-                      <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">
-                        {selectedDevise?.code}
-                      </span>
-                    </div>
-                  </div>
                   <Button
                     type="button"
                     variant="outline"
@@ -475,7 +409,97 @@ function NouvelleFacture() {
                 </label>
               )}
             </div>
-          )}
+          ) : null}
+
+          <div className="glass overflow-hidden rounded-2xl">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 p-5">
+                <h2 className="text-base font-semibold">{isAchat ? "Lignes d'achat" : "Lignes de facturation"}</h2>
+                <div className="flex items-center gap-2">
+                  <div className="w-64">
+                    <ArticleSelect
+                      value=""
+                      services={services}
+                      onSelect={(s) => addItemFromService(s.id)}
+                      placeholder="Ajouter depuis le stock…"
+                    />
+                  </div>
+                  <Button size="sm" variant="outline" className="shrink-0 rounded-xl" onClick={addItem}>
+                    <Plus className="mr-1 size-4" /> Ajouter une ligne
+                  </Button>
+                </div>
+              </div>
+              <div className="divide-y divide-border/50">
+                {computedItems.map((l) => (
+                  <div key={l.id} className="grid gap-3 p-4 sm:grid-cols-12 sm:items-start">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-xs">Article</Label>
+                      <Input
+                        value={l.article}
+                        onChange={(e) => updateItem(l.id, { article: e.target.value, productId: "" })}
+                        placeholder="Nom de l'article"
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-xs">Réf</Label>
+                      <Input value={l.ref} onChange={(e) => updateItem(l.id, { ref: e.target.value })} className="h-9 rounded-lg text-sm" />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-xs">Description</Label>
+                      <Input
+                        value={l.description}
+                        onChange={(e) => updateItem(l.id, { description: e.target.value })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-1">
+                      <Label className="text-xs">Qté</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={l.quantity}
+                        onChange={(e) => updateItem(l.id, { quantity: Number(e.target.value) })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-xs">{isAchat ? "PU d'achat" : "PU"}</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={l.price}
+                        onChange={(e) => updateItem(l.id, { price: Number(e.target.value) })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-xs">TVA</Label>
+                      <Select value={l.taxId} onValueChange={(v) => updateItem(l.id, { taxId: v })}>
+                        <SelectTrigger className="h-9 rounded-lg text-sm">
+                          <SelectValue placeholder="Aucune" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {taxes.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name} ({t.taxvalue}%)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 sm:col-span-1">
+                      <div>
+                        <Label className="text-xs">Total HT</Label>
+                        <p className="text-sm font-semibold">{formatMoney(l.base, selectedDevise?.code)}</p>
+                      </div>
+                      <Button variant="ghost" size="icon" className="size-8 shrink-0 rounded-lg text-destructive hover:text-destructive" onClick={() => removeItem(l.id)}>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+          </div>
         </div>
 
         <div className="lg:sticky lg:top-20 lg:h-fit">
@@ -487,7 +511,7 @@ function NouvelleFacture() {
                 <span className="font-medium">{formatMoney(sousTotalHT, selectedDevise?.code)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Total taxes</span>
+                <span className="text-muted-foreground">Total TVA</span>
                 <span className="font-medium">{formatMoney(totalTaxes, selectedDevise?.code)}</span>
               </div>
               <div className="flex justify-between">
@@ -504,9 +528,6 @@ function NouvelleFacture() {
             <div className="mt-6 space-y-2">
               <Button className="w-full rounded-xl" onClick={persist} disabled={saving || uploadingFile}>
                 <Save className="mr-1.5 size-4" /> {editing ? "Enregistrer" : "Enregistrer la facture"}
-              </Button>
-              <Button variant="outline" className="w-full rounded-xl" onClick={sendEmail}>
-                <Mail className="mr-1.5 size-4" /> Envoyer par e-mail
               </Button>
               <Button variant="ghost" className="w-full rounded-xl" onClick={downloadPdf}>
                 <Upload className="mr-1.5 size-4 rotate-180" /> Télécharger le PDF

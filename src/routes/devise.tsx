@@ -26,7 +26,7 @@ export const Route = createFileRoute("/devise")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Devise — Harmonie-dev" },
+      { title: "Devise" },
       { name: "description", content: "Gérez les devises utilisées pour vos factures." },
     ],
   }),
@@ -155,7 +155,7 @@ function Devise() {
 
       {isError ? (
         <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Impossible de charger les devises — vérifiez que le serveur backend est démarré.
+          Impossible de charger les devises. Vérifiez que le serveur backend est démarré.
         </div>
       ) : null}
 

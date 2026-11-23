@@ -30,7 +30,7 @@ export function MarkPaidSheet({ invoice, open, onOpenChange }: { invoice: ApiInv
       if (!invoice) return;
       const newPaid = Math.min(invoice.paidAmount + amount, invoice.total);
       toast.success(newPaid >= invoice.total ? "Facture marquée payée" : "Paiement partiel enregistré", {
-        description: `#${invoice.number}/${invoice.year} — ${formatMoney(amount, invoice.currency.code)}`,
+        description: `#${invoice.number}/${invoice.year} (${formatMoney(amount, invoice.currency.code)})`,
       });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice", invoice.id] });
@@ -56,7 +56,7 @@ export function MarkPaidSheet({ invoice, open, onOpenChange }: { invoice: ApiInv
             <HandCoins className="size-5 text-ocean" /> Enregistrer un paiement
           </SheetTitle>
           <SheetDescription>
-            {invoice ? `#${invoice.number}/${invoice.year} — reste ${formatMoney(remaining, invoice.currency.code)}` : ""}
+            {invoice ? `#${invoice.number}/${invoice.year}, reste ${formatMoney(remaining, invoice.currency.code)}` : ""}
           </SheetDescription>
         </SheetHeader>
         <div className="mt-6 grid gap-4">

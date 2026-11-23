@@ -2,19 +2,16 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Download, Receipt, TrendingDown, TrendingUp } from "lucide-react";
+import { Download, TrendingDown, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { AdminLayout, PageHeader } from "@/components/app/AdminLayout";
 import { PlanFeatureLocked } from "@/components/app/PlanUsageCard";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatMoney } from "@/lib/mock-data";
 import {
   ApiError,
   downloadReportPdf,
-  getFiscalReport,
   getRevenueSeries,
   getReportOverview,
   getTopClients,
@@ -31,7 +28,7 @@ export const Route = createFileRoute("/rapports")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Rapports — Harmonie-dev" },
+      { title: "Rapports" },
       { name: "description", content: "Analysez vos revenus, dépenses, meilleurs clients et services." },
     ],
   }),
@@ -40,14 +37,6 @@ export const Route = createFileRoute("/rapports")({
 
 function otherCurrencies(amounts: ApiCurrencyAmount[] | undefined, selected: string) {
   return (amounts ?? []).filter((c) => c.currency !== selected && c.amount !== 0);
-}
-
-function currentMonthRange() {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return { from: iso(from), to: iso(to) };
 }
 
 function Rapports() {
@@ -68,12 +57,6 @@ function Rapports() {
     queryFn: () => getTopServices(5, currency),
   });
   const [exporting, setExporting] = useState(false);
-
-  const [fiscalRange, setFiscalRange] = useState(currentMonthRange);
-  const { data: fiscal, isLoading: fiscalLoading } = useQuery({
-    queryKey: ["report-fiscal", fiscalRange.from, fiscalRange.to],
-    queryFn: () => getFiscalReport(fiscalRange.from, fiscalRange.to),
-  });
 
   const currencyOptions = currencies.some((c) => c.code === DEFAULT_CURRENCY)
     ? currencies
@@ -217,74 +200,6 @@ function Rapports() {
             </ul>
           )}
         </div>
-      </div>
-
-      <div className="mt-6 glass rounded-2xl p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="flex items-center gap-2 text-base font-semibold">
-            <Receipt className="size-4 text-ocean" /> Fiscalité (TVA, retenue à la source, CMV)
-          </h2>
-          <div className="flex items-center gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Du</Label>
-              <Input
-                type="date"
-                value={fiscalRange.from}
-                onChange={(e) => setFiscalRange({ ...fiscalRange, from: e.target.value })}
-                className="h-9 rounded-xl text-sm"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Au</Label>
-              <Input
-                type="date"
-                value={fiscalRange.to}
-                onChange={(e) => setFiscalRange({ ...fiscalRange, to: e.target.value })}
-                className="h-9 rounded-xl text-sm"
-              />
-            </div>
-          </div>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Chiffres indicatifs pour préparer votre déclaration mensuelle — à vérifier avec votre comptable avant tout
-          dépôt officiel.
-          {fiscal ? ` Régime : ${fiscal.regimeFiscal ?? "—"} (${fiscal.assujettiTva ? "assujetti à la TVA" : "non assujetti"}).` : ""}
-        </p>
-        {fiscalLoading ? (
-          <p className="mt-4 text-sm text-muted-foreground">Chargement…</p>
-        ) : (
-          <div className="mt-4 grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            <div className="rounded-xl border border-border/60 p-3.5">
-              <p className="text-xs text-muted-foreground">TVA collectée</p>
-              <p className="mt-1 text-lg font-semibold">{formatMoney(fiscal?.tvaCollectee ?? 0, "TND")}</p>
-            </div>
-            <div className="rounded-xl border border-border/60 p-3.5">
-              <p className="text-xs text-muted-foreground">TVA déductible</p>
-              <p className="mt-1 text-lg font-semibold">{formatMoney(fiscal?.tvaDeductible ?? 0, "TND")}</p>
-            </div>
-            <div className="rounded-xl border border-border/60 p-3.5">
-              <p className="text-xs text-muted-foreground">TVA non récupérable</p>
-              <p className="mt-1 text-lg font-semibold">{formatMoney(fiscal?.tvaNonRecuperable ?? 0, "TND")}</p>
-            </div>
-            <div className="rounded-xl border border-border/60 p-3.5">
-              <p className="text-xs text-muted-foreground">Solde TVA</p>
-              <p className={`mt-1 text-lg font-semibold ${(fiscal?.soldeTva ?? 0) >= 0 ? "" : "text-success"}`}>
-                {formatMoney(fiscal?.soldeTva ?? 0, "TND")}
-              </p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {(fiscal?.soldeTva ?? 0) >= 0 ? "À payer" : "Crédit de TVA"}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/60 p-3.5">
-              <p className="text-xs text-muted-foreground">Retenue à la source</p>
-              <p className="mt-1 text-lg font-semibold">{formatMoney(fiscal?.retenueSourceTotal ?? 0, "TND")}</p>
-            </div>
-            <div className="rounded-xl border border-border/60 p-3.5">
-              <p className="text-xs text-muted-foreground">CMV (coût des ventes)</p>
-              <p className="mt-1 text-lg font-semibold">{formatMoney(fiscal?.cmv ?? 0, "TND")}</p>
-            </div>
-          </div>
-        )}
       </div>
     </AdminLayout>
   );

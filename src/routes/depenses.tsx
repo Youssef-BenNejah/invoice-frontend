@@ -1,31 +1,28 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Pencil, Plus, Tag, Trash2, Wallet } from "lucide-react";
+import { CheckCircle2, Pencil, Plus, Trash2, Undo2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { AdminLayout, PageHeader } from "@/components/app/AdminLayout";
 import { DataTable, type Column } from "@/components/app/DataTable";
-import { DetailField, DetailSheet } from "@/components/app/DetailSheet";
+import { StatusBadge } from "@/components/app/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
-import { formatMoney } from "@/lib/mock-data";
+import { formatDate, formatMoney } from "@/lib/mock-data";
 import {
   ApiError,
-  createDepense,
-  createDepenseCategory,
-  deleteDepense,
-  deleteDepenseCategory,
-  listDepenseCategories,
-  listDepenses,
-  updateDepense,
-  type ApiDepense,
-  type ApiDepenseCategory,
-  type DepenseCategoryPayload,
-  type DepensePayload,
+  createDepenseNote,
+  deleteDepenseNote,
+  listDepenseNotes,
+  updateDepenseNote,
+  updateDepenseNoteStatus,
+  type ApiDepenseNote,
+  type ApiNoteStatus,
+  type DepenseNotePayload,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/route-guards";
 
@@ -33,190 +30,163 @@ export const Route = createFileRoute("/depenses")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Dépenses — Harmonie-dev" },
-      { name: "description", content: "Suivez et catégorisez les dépenses de votre entreprise." },
+      { title: "Dépenses" },
+      { name: "description", content: "Suivez ce que vous devez encore payer à vos fournisseurs." },
     ],
   }),
   component: Depenses,
 });
 
-const devisesDepense = ["USD", "EUR", "GBP", "JPY", "CNY", "INR", "TND"];
 const DEFAULT_CURRENCY = "TND";
 
-type FormState = DepensePayload;
-const emptyForm = (categoryId: string): FormState => ({ name: "", price: 0, currency: "USD", description: "", reference: "", categoryId });
-const emptyCategory: DepenseCategoryPayload = { name: "", color: "#1565C6" };
+type NoteFormState = DepenseNotePayload;
+const emptyNoteForm = (): NoteFormState => ({
+  fournisseurNom: "",
+  telephone: "",
+  montant: 0,
+  date: new Date().toISOString().slice(0, 10),
+  status: "NON_PAYE",
+  description: "",
+});
+const noteStatusLabel: Record<ApiNoteStatus, string> = { NON_PAYE: "impayé", PAYE: "Payé" };
 
 function Depenses() {
   const queryClient = useQueryClient();
-  const { data: categories = [], isLoading: categoriesLoading, isError: categoriesError } = useQuery({
-    queryKey: ["depense-categories"],
-    queryFn: listDepenseCategories,
+  const { data: notes = [], isLoading: notesLoading, isError: notesError } = useQuery({
+    queryKey: ["depense-notes"],
+    queryFn: listDepenseNotes,
   });
-  const { data: rows = [], isLoading, isError } = useQuery({ queryKey: ["depenses"], queryFn: listDepenses });
 
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<ApiDepense | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm(""));
-  const [catOpen, setCatOpen] = useState(false);
-  const [newCategory, setNewCategory] = useState(emptyCategory);
-  const [viewing, setViewing] = useState<ApiDepense | null>(null);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [editingNote, setEditingNote] = useState<ApiDepenseNote | null>(null);
+  const [noteForm, setNoteForm] = useState<NoteFormState>(emptyNoteForm());
 
-  const invalidateDepenses = () => queryClient.invalidateQueries({ queryKey: ["depenses"] });
-  const invalidateCategories = () => queryClient.invalidateQueries({ queryKey: ["depense-categories"] });
+  const invalidateNotes = () => queryClient.invalidateQueries({ queryKey: ["depense-notes"] });
 
   const onError = (err: unknown, fallback: string) => {
     const message = err instanceof ApiError ? err.message : fallback;
     toast.error(fallback, { description: message });
   };
 
-  const [currencyFilter, setCurrencyFilter] = useState(DEFAULT_CURRENCY);
-
-  const currenciesInUse = useMemo(() => {
-    const set = new Set(rows.map((d) => d.currency));
-    set.add(DEFAULT_CURRENCY);
-    return [...set].sort();
-  }, [rows]);
-
-  const filteredRows = useMemo(
-    () => (currencyFilter === "toutes" ? rows : rows.filter((d) => d.currency === currencyFilter)),
-    [rows, currencyFilter],
+  const totalAPayer = useMemo(
+    () => notes.filter((n) => n.status === "NON_PAYE").reduce((sum, n) => sum + n.montant, 0),
+    [notes],
   );
 
-  const total = useMemo(() => filteredRows.reduce((sum, d) => sum + d.price, 0), [filteredRows]);
-
-  const totalsByCurrency = useMemo(() => {
-    const totals = new Map<string, number>();
-    for (const d of rows) totals.set(d.currency, (totals.get(d.currency) ?? 0) + d.price);
-    return [...totals.entries()];
-  }, [rows]);
-
-  const createMutation = useMutation({
-    mutationFn: createDepense,
-    onSuccess: (d) => {
-      toast.success("Dépense ajoutée", { description: d.name });
-      setOpen(false);
-      invalidateDepenses();
-    },
-    onError: (err) => onError(err, "Échec de la création"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: DepensePayload }) => updateDepense(id, payload),
-    onSuccess: (d) => {
-      toast.success("Dépense mise à jour", { description: d.name });
-      setOpen(false);
-      invalidateDepenses();
-    },
-    onError: (err) => onError(err, "Échec de la mise à jour"),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteDepense,
-    onSuccess: (_data, id) => {
-      const d = rows.find((r) => r.id === id);
-      toast("Dépense supprimée", { description: d?.name });
-      invalidateDepenses();
-    },
-    onError: (err) => onError(err, "Échec de la suppression"),
-  });
-
-  const createCategoryMutation = useMutation({
-    mutationFn: createDepenseCategory,
+  const createNoteMutation = useMutation({
+    mutationFn: createDepenseNote,
     onSuccess: () => {
-      setNewCategory(emptyCategory);
-      invalidateCategories();
+      toast.success("Note ajoutée");
+      setNoteOpen(false);
+      invalidateNotes();
     },
-    onError: (err) => onError(err, "Échec de la création de la catégorie"),
+    onError: (err) => onError(err, "Échec de la création de la note"),
   });
 
-  const deleteCategoryMutation = useMutation({
-    mutationFn: deleteDepenseCategory,
-    onSuccess: () => invalidateCategories(),
-    onError: (err) => onError(err, "Échec de la suppression de la catégorie"),
+  const updateNoteMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: DepenseNotePayload }) => updateDepenseNote(id, payload),
+    onSuccess: () => {
+      toast.success("Note mise à jour");
+      setNoteOpen(false);
+      invalidateNotes();
+    },
+    onError: (err) => onError(err, "Échec de la mise à jour de la note"),
   });
 
-  const categoryById = (id?: string | null) => categories.find((c) => c.id === id);
+  const updateNoteStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: ApiNoteStatus }) => updateDepenseNoteStatus(id, status),
+    onSuccess: () => {
+      toast.success("Statut mis à jour");
+      invalidateNotes();
+    },
+    onError: (err) => onError(err, "Échec de la mise à jour du statut"),
+  });
 
-  const openCreate = () => {
-    setEditing(null);
-    setForm(emptyForm(categories[0]?.id ?? ""));
-    setOpen(true);
+  const deleteNoteMutation = useMutation({
+    mutationFn: deleteDepenseNote,
+    onSuccess: () => {
+      toast("Note supprimée");
+      invalidateNotes();
+    },
+    onError: (err) => onError(err, "Échec de la suppression de la note"),
+  });
+
+  const openCreateNote = () => {
+    setEditingNote(null);
+    setNoteForm(emptyNoteForm());
+    setNoteOpen(true);
   };
 
-  const openEdit = (d: ApiDepense) => {
-    setEditing(d);
-    setForm({ name: d.name, price: d.price, currency: d.currency, description: d.description ?? "", reference: d.reference ?? "", categoryId: d.categoryId ?? "" });
-    setOpen(true);
+  const openEditNote = (n: ApiDepenseNote) => {
+    setEditingNote(n);
+    setNoteForm({
+      fournisseurNom: n.fournisseurNom ?? "",
+      telephone: n.telephone ?? "",
+      montant: n.montant,
+      date: n.date ? n.date.slice(0, 10) : "",
+      status: n.status,
+      description: n.description ?? "",
+    });
+    setNoteOpen(true);
   };
 
-  const save = () => {
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, payload: form });
+  const saveNote = () => {
+    const { date, ...rest } = noteForm;
+    const payload: DepenseNotePayload = {
+      ...rest,
+      ...(date ? { date: new Date(date).toISOString() } : {}),
+    };
+    if (editingNote) {
+      updateNoteMutation.mutate({ id: editingNote.id, payload });
     } else {
-      createMutation.mutate(form);
+      createNoteMutation.mutate(payload);
     }
   };
 
-  const remove = (d: ApiDepense) => deleteMutation.mutate(d.id);
+  const toggleNoteStatus = (n: ApiDepenseNote) =>
+    updateNoteStatusMutation.mutate({ id: n.id, status: n.status === "PAYE" ? "NON_PAYE" : "PAYE" });
 
-  const addCategory = () => {
-    const name = newCategory.name.trim();
-    if (!name) return;
-    createCategoryMutation.mutate({ ...newCategory, name });
-  };
+  const removeNote = (n: ApiDepenseNote) => deleteNoteMutation.mutate(n.id);
 
-  const removeCategory = (id: string) => deleteCategoryMutation.mutate(id);
-
-  const columns: Column<ApiDepense>[] = [
+  const noteColumns: Column<ApiDepenseNote>[] = [
     {
-      key: "name",
-      header: "Dépense",
+      key: "fournisseur",
+      header: "Fournisseur",
       sortable: true,
-      sortValue: (r) => r.name,
-      cell: (r) => (
-        <div>
-          <p className="font-medium">{r.name}</p>
-          <p className="text-xs text-muted-foreground">{r.reference}</p>
-        </div>
-      ),
+      sortValue: (r) => r.fournisseurNom ?? "",
+      cell: (r) => <span className="font-medium">{r.fournisseurNom || ""}</span>,
     },
+    { key: "telephone", header: "Téléphone", cell: (r) => <span className="text-muted-foreground">{r.telephone || ""}</span> },
     {
-      key: "depenseCategory",
-      header: "Catégorie",
-      cell: (r) => {
-        const cat = categoryById(r.categoryId);
-        return cat ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-ice px-2.5 py-1 text-xs font-medium text-navy dark:bg-white/10 dark:text-sky">
-            <span className="size-2 rounded-full" style={{ background: cat.color ?? "#1565C6" }} />
-            {cat.name}
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">—</span>
-        );
-      },
-    },
-    {
-      key: "price",
-      header: "Montant",
+      key: "montant",
+      header: "Montant à payer",
       className: "text-right",
       sortable: true,
-      sortValue: (r) => r.price,
-      cell: (r) => <span className="font-semibold">{formatMoney(r.price, r.currency)}</span>,
+      sortValue: (r) => r.montant,
+      cell: (r) => <span className="font-semibold">{formatMoney(r.montant, DEFAULT_CURRENCY)}</span>,
     },
+    {
+      key: "date",
+      header: "Date",
+      sortable: true,
+      sortValue: (r) => r.date ?? "",
+      cell: (r) => <span className="text-muted-foreground">{r.date ? formatDate(r.date) : ""}</span>,
+    },
+    { key: "status", header: "Statut", cell: (r) => <StatusBadge status={noteStatusLabel[r.status]} /> },
+    { key: "description", header: "Description", cell: (r) => <span className="text-muted-foreground">{r.description || ""}</span> },
     {
       key: "actions",
       header: "",
       className: "text-right",
       cell: (r) => (
         <div className="flex justify-end gap-1.5">
-          <Button variant="ghost" size="icon" className="size-8 rounded-lg" onClick={() => setViewing(r)}>
-            <Eye className="size-4" />
+          <Button variant="ghost" size="icon" className="size-8 rounded-lg" title={r.status === "PAYE" ? "Marquer impayé" : "Marquer payé"} onClick={() => toggleNoteStatus(r)}>
+            {r.status === "PAYE" ? <Undo2 className="size-4" /> : <CheckCircle2 className="size-4" />}
           </Button>
-          <Button variant="ghost" size="icon" className="size-8 rounded-lg" onClick={() => openEdit(r)}>
+          <Button variant="ghost" size="icon" className="size-8 rounded-lg" onClick={() => openEditNote(r)}>
             <Pencil className="size-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="size-8 rounded-lg text-destructive hover:text-destructive" onClick={() => remove(r)}>
+          <Button variant="ghost" size="icon" className="size-8 rounded-lg text-destructive hover:text-destructive" onClick={() => removeNote(r)}>
             <Trash2 className="size-4" />
           </Button>
         </div>
@@ -228,35 +198,17 @@ function Depenses() {
     <AdminLayout>
       <PageHeader
         title="Dépenses"
-        subtitle="Suivez les dépenses de votre entreprise par catégorie."
+        subtitle="Suivez ce que vous devez encore payer à vos fournisseurs."
         actions={
-          <>
-            <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
-              <SelectTrigger className="h-10 w-[140px] rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="toutes">Toutes les devises</SelectItem>
-                {currenciesInUse.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" className="rounded-xl" onClick={() => setCatOpen(true)}>
-              <Tag className="mr-1.5 size-4" /> Catégories
-            </Button>
-            <Button className="rounded-xl" onClick={openCreate}>
-              <Plus className="mr-1.5 size-4" /> Nouvelle dépense
-            </Button>
-          </>
+          <Button className="rounded-xl" onClick={openCreateNote}>
+            <Plus className="mr-1.5 size-4" /> Nouvelle note
+          </Button>
         }
       />
 
-      {isError || categoriesError ? (
+      {notesError ? (
         <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Impossible de charger les dépenses — vérifiez que le serveur backend est démarré.
+          Impossible de charger les notes, vérifiez que le serveur backend est démarré.
         </div>
       ) : null}
 
@@ -264,175 +216,103 @@ function Depenses() {
         <div className="glass rounded-2xl p-5">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Wallet className="size-4" />
-            {currencyFilter === "toutes" ? "Total des dépenses" : `Total des dépenses en ${currencyFilter}`}
+            Total à payer
           </div>
-          {currencyFilter === "toutes" ? (
-            totalsByCurrency.length === 0 ? (
-              <p className="mt-2 text-2xl font-semibold">{formatMoney(0, DEFAULT_CURRENCY)}</p>
-            ) : (
-              <div className="mt-2 space-y-1">
-                {totalsByCurrency.map(([currency, amount]) => (
-                  <p key={currency} className="text-2xl font-semibold">
-                    {formatMoney(amount, currency)}
-                  </p>
-                ))}
-              </div>
-            )
-          ) : (
-            <p className="mt-2 text-2xl font-semibold">{formatMoney(total, currencyFilter)}</p>
-          )}
+          <p className="mt-2 text-2xl font-semibold">{formatMoney(totalAPayer, DEFAULT_CURRENCY)}</p>
         </div>
       </div>
 
       <DataTable
-        rows={filteredRows}
-        columns={columns}
-        searchKeys={(r) => `${r.name} ${categoryById(r.categoryId)?.name ?? ""}`}
-        searchPlaceholder="Rechercher une dépense…"
-        emptyTitle={isLoading || categoriesLoading ? "Chargement…" : "Aucune dépense"}
+        rows={notes}
+        columns={noteColumns}
+        searchKeys={(r) => `${r.fournisseurNom ?? ""} ${r.telephone ?? ""} ${r.description ?? ""}`}
+        searchPlaceholder="Rechercher une note…"
+        emptyTitle={notesLoading ? "Chargement…" : "Aucune note"}
       />
 
-      <Sheet open={open} onOpenChange={setOpen}>
+      <Sheet open={noteOpen} onOpenChange={setNoteOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>{editing ? "Modifier la dépense" : "Nouvelle dépense"}</SheetTitle>
-            <SheetDescription>Renseignez le détail de la dépense.</SheetDescription>
+            <SheetTitle>{editingNote ? "Modifier la note" : "Nouvelle note"}</SheetTitle>
+            <SheetDescription>Montant dû à un fournisseur, pas encore payé.</SheetDescription>
           </SheetHeader>
           <div className="mt-6 grid gap-4">
             <div className="space-y-2">
-              <Label>Nom</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-xl" />
-            </div>
-            <div className="space-y-2">
-              <Label>Catégorie</Label>
-              <Select value={form.categoryId} onValueChange={(v) => setForm({ ...form, categoryId: v })}>
-                <SelectTrigger className="h-10 rounded-xl">
-                  <SelectValue placeholder="Choisir une catégorie…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Fournisseur</Label>
+              <Input
+                value={noteForm.fournisseurNom}
+                onChange={(e) => setNoteForm({ ...noteForm, fournisseurNom: e.target.value })}
+                className="rounded-xl"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Montant</Label>
-                <Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} className="rounded-xl" />
+                <Label>Téléphone</Label>
+                <Input
+                  value={noteForm.telephone}
+                  onChange={(e) => setNoteForm({ ...noteForm, telephone: e.target.value })}
+                  className="rounded-xl"
+                />
               </div>
               <div className="space-y-2">
-                <Label>Devise</Label>
-                <Select value={form.currency} onValueChange={(v) => setForm({ ...form, currency: v })}>
+                <Label>Montant à payer</Label>
+                <Input
+                  type="number"
+                  value={noteForm.montant}
+                  onChange={(e) => setNoteForm({ ...noteForm, montant: Number(e.target.value) })}
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={noteForm.date ?? ""}
+                  onChange={(e) => setNoteForm({ ...noteForm, date: e.target.value })}
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Statut</Label>
+                <Select
+                  value={noteForm.status ?? "NON_PAYE"}
+                  onValueChange={(v) => setNoteForm({ ...noteForm, status: v as ApiNoteStatus })}
+                >
                   <SelectTrigger className="h-10 rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {devisesDepense.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="NON_PAYE">Non payé</SelectItem>
+                    <SelectItem value="PAYE">Payé</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Référence</Label>
-              <Input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} className="rounded-xl" />
-            </div>
-            <div className="space-y-2">
               <Label>Description</Label>
-              <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="rounded-xl" />
+              <Textarea
+                value={noteForm.description}
+                onChange={(e) => setNoteForm({ ...noteForm, description: e.target.value })}
+                className="rounded-xl"
+              />
             </div>
           </div>
           <SheetFooter className="mt-6">
-            <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
+            <Button variant="outline" className="rounded-xl" onClick={() => setNoteOpen(false)}>
               Annuler
             </Button>
             <Button
               className="rounded-xl"
-              onClick={save}
-              disabled={!form.name || !form.categoryId || createMutation.isPending || updateMutation.isPending}
+              onClick={saveNote}
+              disabled={createNoteMutation.isPending || updateNoteMutation.isPending}
             >
               Enregistrer
             </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
-
-      <Sheet open={catOpen} onOpenChange={setCatOpen}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>Catégories de dépenses</SheetTitle>
-            <SheetDescription>Ajoutez ou retirez des catégories.</SheetDescription>
-          </SheetHeader>
-          <div className="mt-6 flex gap-2">
-            <Input
-              value={newCategory.name}
-              onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-              placeholder="Nouvelle catégorie"
-              className="rounded-xl"
-              onKeyDown={(e) => e.key === "Enter" && addCategory()}
-            />
-            <Button className="rounded-xl" onClick={addCategory} disabled={createCategoryMutation.isPending}>
-              Ajouter
-            </Button>
-          </div>
-          <ul className="mt-2 space-y-2">
-            {categories.map((c: ApiDepenseCategory) => (
-              <li key={c.id} className="flex items-center justify-between rounded-xl border border-border/60 px-3 py-2 text-sm">
-                <span className="flex items-center gap-2">
-                  <span className="size-2.5 rounded-full" style={{ background: c.color ?? "#1565C6" }} />
-                  {c.name}
-                </span>
-                <Button variant="ghost" size="icon" className="size-7 rounded-lg text-destructive hover:text-destructive" onClick={() => removeCategory(c.id)}>
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </li>
-            ))}
-          </ul>
-          <SheetFooter className="mt-6">
-            <Button className="rounded-xl" onClick={() => setCatOpen(false)}>
-              Fermer
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
-
-      <DetailSheet
-        open={!!viewing}
-        onOpenChange={(o) => !o && setViewing(null)}
-        icon={<Wallet className="size-5 text-ocean" />}
-        title={viewing?.name ?? ""}
-        subtitle="Détail de la dépense"
-        footer={
-          viewing ? (
-            <Button
-              className="w-full rounded-xl"
-              onClick={() => {
-                openEdit(viewing);
-                setViewing(null);
-              }}
-            >
-              <Pencil className="mr-1.5 size-4" /> Modifier
-            </Button>
-          ) : null
-        }
-      >
-        {viewing ? (
-          <>
-            <DetailField label="Nom" value={viewing.name} />
-            <DetailField label="Catégorie" value={categoryById(viewing.categoryId)?.name} />
-            <DetailField label="Référence" value={viewing.reference} />
-            <DetailField label="Montant" value={formatMoney(viewing.price, viewing.currency)} />
-            <DetailField label="Description" value={viewing.description} />
-            <DetailField label="Ajoutée le" value={viewing.created?.slice(0, 10)} />
-          </>
-        ) : null}
-      </DetailSheet>
     </AdminLayout>
   );
 }

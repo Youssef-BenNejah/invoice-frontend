@@ -47,7 +47,7 @@ export function NotificationsBell() {
   const approveMutation = useMutation({
     mutationFn: adminApproveRenewal,
     onSuccess: (user) => {
-      toast.success("Renouvellement approuvé", { description: `${user.firstName} ${user.lastName} — plan prolongé de 30 jours` });
+      toast.success("Renouvellement approuvé", { description: `${user.firstName} ${user.lastName}, plan prolongé de 30 jours` });
       invalidate();
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       setSelected(null);

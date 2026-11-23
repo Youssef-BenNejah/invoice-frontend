@@ -2,27 +2,21 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Building2,
-  ChevronDown,
   Coins,
-  Crown,
   FileMinus,
   FileText,
   HandCoins,
-  LayoutDashboard,
   LogOut,
   Menu,
   Moon,
   Package,
   Percent,
-  PieChart,
+  Ruler,
   Search,
   Settings2,
-  ShieldCheck,
-  ShoppingBag,
   Sun,
   Truck,
   User,
-  UserPlus,
   Users,
   Wallet,
 } from "lucide-react";
@@ -39,18 +33,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
 import { NotificationsBell } from "@/components/app/NotificationsBell";
+import { SyncStatusBadge } from "@/components/app/SyncStatusBadge";
 import { getMyPlanUsage, logout, useCurrentUser, type ApiRole } from "@/lib/api";
 import { useAuthGuard } from "@/lib/route-guards";
 import { cn } from "@/lib/utils";
 
 const nav = [
-  { to: "/tableau-de-bord", label: "Tableau de bord", icon: LayoutDashboard },
   { to: "/personnes", label: "Personnes", icon: Users },
   { to: "/entreprises", label: "Entreprises", icon: Building2 },
   { to: "/clients", label: "Clients", icon: User },
   { to: "/fournisseurs", label: "Fournisseurs", icon: Truck },
   { to: "/services", label: "Stock", icon: Package },
-  { to: "/achats", label: "Achats", icon: ShoppingBag },
+  { to: "/articles", label: "Articles", icon: Ruler },
   { to: "/factures-ventes", label: "Factures Ventes", icon: FileText },
   { to: "/factures-achats", label: "Factures Achats", icon: FileMinus },
   { to: "/paiements", label: "Paiements", icon: HandCoins },
@@ -58,13 +52,6 @@ const nav = [
   { to: "/taxes", label: "Taxes", icon: Percent },
   { to: "/depenses", label: "Dépenses", icon: Wallet },
   { to: "/mon-entreprise", label: "Ma entreprise", icon: Settings2 },
-  { to: "/rapports", label: "Rapports", icon: PieChart },
-] as const;
-
-const superAdminNav = [
-  { to: "/superadmin", label: "Utilisateurs actuels", icon: ShieldCheck },
-  { to: "/superadmin/demandes", label: "Demandes d'adhésion", icon: UserPlus },
-  { to: "/superadmin/plans", label: "Plans d'abonnement", icon: Crown },
 ] as const;
 
 function useDarkMode() {
@@ -88,10 +75,6 @@ function useDarkMode() {
 
 function NavList({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const currentUser = useCurrentUser();
-  const isSuperAdmin = currentUser?.role === "ADMIN";
-  const superAdminActive = pathname.startsWith("/superadmin");
-  const [superAdminOpen, setSuperAdminOpen] = useState(superAdminActive);
 
   return (
     <nav className="flex flex-col gap-1 px-3">
@@ -114,47 +97,6 @@ function NavList({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
           </Link>
         );
       })}
-
-      {isSuperAdmin ? (
-        <>
-          <button
-            type="button"
-            onClick={() => setSuperAdminOpen((o) => !o)}
-            className={cn(
-              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/75 transition-all",
-              "hover:bg-white/10 hover:text-sidebar-foreground",
-              superAdminActive && !superAdminOpen && "text-sidebar-foreground",
-            )}
-          >
-            <ShieldCheck className="size-[18px] shrink-0" />
-            <span className="flex-1 truncate text-left">Super Admin</span>
-            <ChevronDown className={cn("size-4 shrink-0 transition-transform", superAdminOpen && "rotate-180")} />
-          </button>
-          {superAdminOpen ? (
-            <div className="ml-4 flex flex-col gap-1 border-l border-white/10 pl-3">
-              {superAdminNav.map((item) => {
-                const active = pathname === item.to;
-                return (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    onClick={onNavigate}
-                    className={cn(
-                      "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/75 transition-all",
-                      "hover:bg-white/10 hover:text-sidebar-foreground",
-                      active &&
-                        "bg-ocean text-primary-foreground shadow-[0_10px_30px_-10px_var(--ocean)] hover:bg-ocean hover:text-primary-foreground",
-                    )}
-                  >
-                    <item.icon className="size-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          ) : null}
-        </>
-      ) : null}
     </nav>
   );
 }
@@ -201,7 +143,7 @@ function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
       <div className="flex items-center gap-3 px-6 py-6">
         <img src="/logo-mark.png" alt="" className="size-10 shrink-0" />
         <div>
-          <p className="text-base font-semibold text-sidebar-foreground">Harmonie-dev</p>
+          <p className="text-base font-semibold text-sidebar-foreground">Invoxa</p>
           <p className="text-xs text-sidebar-foreground/60">Facturation & gestion</p>
         </div>
       </div>
@@ -257,6 +199,7 @@ export function AdminLayout({ children, requireRole }: { children: ReactNode; re
           </div>
 
           <div className="ml-auto flex items-center gap-1.5">
+            <SyncStatusBadge />
             <NotificationsBell />
             <Button variant="ghost" size="icon" className="size-11 rounded-xl" onClick={toggle} aria-label="Basculer le thème">
               {dark ? <Sun className="size-6" /> : <Moon className="size-6" />}

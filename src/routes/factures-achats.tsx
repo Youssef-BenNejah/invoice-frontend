@@ -6,16 +6,16 @@ export const Route = createFileRoute("/factures-achats")({
   beforeLoad: requireAuth,
   head: () => ({
     meta: [
-      { title: "Factures Achats — Harmonie-dev" },
-      { name: "description", content: "Suivez vos factures proforma et achats fournisseurs." },
+      { title: "Factures Achats" },
+      { name: "description", content: "Vos factures d'achat fournisseurs — chaque facture alimente le stock." },
     ],
   }),
   component: () => (
     <InvoiceListPage
-      type="Proforma"
+      type="Achat"
       title="Factures Achats"
-      subtitle="Vos factures proforma et achats fournisseurs."
-      newLabel="Nouvelle facture proforma"
+      subtitle="Vos factures d'achat fournisseurs — chaque facture alimente le stock."
+      newLabel="Nouvelle facture d'achat"
     />
   ),
 });

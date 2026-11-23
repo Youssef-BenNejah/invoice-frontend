@@ -22,7 +22,7 @@ export function AuthLayout({
       <div className="relative w-full max-w-md">
         <Link to="/" className="mb-6 flex items-center justify-center gap-2.5">
           <img src="/logo-mark.png" alt="" className="size-10 shrink-0" />
-          <span className="text-lg font-semibold text-navy">Harmonie-dev</span>
+          <span className="text-lg font-semibold text-navy">Invoxa</span>
         </Link>
         <div className="rounded-3xl border border-border bg-card p-7 shadow-2xl shadow-ocean/10">
           <h1 className="text-2xl font-semibold text-navy">{title}</h1>

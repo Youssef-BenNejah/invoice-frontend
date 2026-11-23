@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Download, Eye, FileArchive, FileDown, HandCoins, Mail, MoreHorizontal, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { Copy, Download, Eye, FileArchive, FileDown, HandCoins, MoreHorizontal, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { AdminLayout, PageHeader } from "@/components/app/AdminLayout";
 import { BulkImportInvoicesDialog } from "@/components/app/BulkImportInvoicesDialog";
@@ -30,11 +30,10 @@ import {
   duplicateInvoiceApi,
   listCurrencies,
   listInvoices,
-  sendInvoiceByEmail,
   type ApiInvoice,
   type ApiInvoiceType,
 } from "@/lib/api";
-import { apiClientLabel as clientLabel, apiInvoiceNumberLabel as invoiceNumberLabel } from "@/lib/invoice-adapter";
+import { apiPartyLabel as clientLabel, apiInvoiceNumberLabel as invoiceNumberLabel } from "@/lib/invoice-adapter";
 
 const statuts: InvoiceStatus[] = ["Facture", "Devis", "Bon de livraison"];
 
@@ -106,7 +105,6 @@ export function InvoiceListPage({
   const duplicate = (inv: ApiInvoice) => duplicateMutation.mutate(inv.id);
 
   const [exporting, setExporting] = useState(false);
-  const [sendingId, setSendingId] = useState<string | null>(null);
 
   const downloadOne = async (inv: ApiInvoice) => {
     try {
@@ -114,19 +112,6 @@ export function InvoiceListPage({
       toast.success("PDF téléchargé", { description: `${invoiceNumberLabel(inv)}.pdf` });
     } catch {
       toast.error("Échec de la génération du PDF");
-    }
-  };
-
-  const sendOne = async (inv: ApiInvoice) => {
-    setSendingId(inv.id);
-    try {
-      await sendInvoiceByEmail(inv.id);
-      toast.success("Facture envoyée par e-mail", { description: clientLabel(inv.client) });
-    } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Échec de l'envoi";
-      toast.error("Échec de l'envoi par e-mail", { description: message });
-    } finally {
-      setSendingId(null);
     }
   };
 
@@ -172,7 +157,7 @@ export function InvoiceListPage({
         </Link>
       ),
     },
-    { key: "client", header: "Client", cell: (r) => clientLabel(r.client) },
+    { key: "client", header: type === "Achat" ? "Fournisseur" : "Client", cell: (r) => clientLabel(r) },
     { key: "date", header: "Date", sortable: true, sortValue: (r) => r.date, cell: (r) => <span className="text-muted-foreground">{formatDate(r.date)}</span> },
     { key: "status", header: "Statut", cell: (r) => <StatusBadge status={r.status} /> },
     { key: "paymentStatus", header: "Paiement", cell: (r) => <StatusBadge status={r.paymentStatus} /> },
@@ -235,9 +220,6 @@ export function InvoiceListPage({
             <DropdownMenuItem onClick={() => downloadOne(r)}>
               <FileDown className="mr-2 size-4" /> Télécharger PDF
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => sendOne(r)} disabled={sendingId === r.id}>
-              <Mail className="mr-2 size-4" /> Envoyer par e-mail
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => duplicate(r)}>
               <Copy className="mr-2 size-4" /> Dupliquer
             </DropdownMenuItem>
@@ -258,9 +240,11 @@ export function InvoiceListPage({
         subtitle={subtitle}
         actions={
           <>
-            <Button variant="outline" className="rounded-xl" onClick={() => setImportOpen(true)}>
-              <Upload className="mr-1.5 size-4" /> Importer
-            </Button>
+            {type !== "Achat" ? (
+              <Button variant="outline" className="rounded-xl" onClick={() => setImportOpen(true)}>
+                <Upload className="mr-1.5 size-4" /> Importer
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               className="rounded-xl"
@@ -280,14 +264,14 @@ export function InvoiceListPage({
 
       {isError ? (
         <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Impossible de charger les factures — vérifiez que le serveur backend est démarré.
+          Impossible de charger les factures. Vérifiez que le serveur backend est démarré.
         </div>
       ) : null}
 
       <DataTable
         rows={filtered}
         columns={columns}
-        searchKeys={(r) => `${invoiceNumberLabel(r)} ${clientLabel(r.client)}`}
+        searchKeys={(r) => `${invoiceNumberLabel(r)} ${clientLabel(r)}`}
         searchPlaceholder="Rechercher une facture, un client…"
         selectable
         onSelectionChange={setSelected}

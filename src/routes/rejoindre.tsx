@@ -16,8 +16,8 @@ export const Route = createFileRoute("/rejoindre")({
   beforeLoad: redirectIfAuthenticated,
   head: () => ({
     meta: [
-      { title: "Rejoindre la plateforme — Harmonie-dev" },
-      { name: "description", content: "Demandez l'accès à Harmonie-dev — notre équipe vous contacte sous peu." },
+      { title: "Rejoindre la plateforme" },
+      { name: "description", content: "Demandez l'accès à Invoxa — notre équipe vous contacte sous peu." },
     ],
   }),
   component: JoinForm,
@@ -69,7 +69,7 @@ function JoinForm() {
 
   return (
     <AuthLayout
-      title="Rejoindre Harmonie-dev"
+      title="Rejoindre Invoxa"
       subtitle="Parlez-nous de votre entreprise — nous vous recontactons pour créer votre accès."
       footer={
         <>
