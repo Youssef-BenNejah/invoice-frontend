@@ -637,6 +637,27 @@ export function getStockDashboard() {
   return request<ApiStockDashboard>("/stock/dashboard");
 }
 
+export type ApiStockVenteDashboardItem = {
+  productId: string;
+  article: string;
+  ref: string | null;
+  quantite: number;
+  puHTVente: number;
+  totalHTVente: number;
+  puTTCVente: number;
+  totalTTCVente: number;
+};
+
+export type ApiStockVenteDashboard = {
+  totalValueHTVente: number;
+  totalValueTTCVente: number;
+  items: ApiStockVenteDashboardItem[];
+};
+
+export function getStockVenteDashboard() {
+  return request<ApiStockVenteDashboard>("/stock/dashboard/vente");
+}
+
 export async function downloadStockReportPdf() {
   const { blob, fileName } = await requestBlob("/stock/dashboard/pdf");
   triggerBlobDownload(blob, fileName ?? "rapport-stock.pdf");
@@ -665,6 +686,37 @@ export type ApiStockReport = {
 export function getStockReport(year: number, month: number) {
   const params = new URLSearchParams({ year: String(year), month: String(month) });
   return request<ApiStockReport>(`/stock/report?${params.toString()}`);
+}
+
+export async function downloadStockReportMonthlyPdf(year: number, month: number) {
+  const params = new URLSearchParams({ year: String(year), month: String(month) });
+  const { blob, fileName } = await requestBlob(`/stock/report/pdf?${params.toString()}`);
+  triggerBlobDownload(blob, fileName ?? `rapport-stock-${year}-${month}.pdf`);
+}
+
+export type ApiStockMovementType = "ACHAT" | "VENTE" | "AJUSTEMENT" | "ANNULATION_ACHAT" | "ANNULATION_VENTE";
+
+export type ApiStockMovement = {
+  id: string;
+  productId: string;
+  article: string | null;
+  ref: string | null;
+  type: ApiStockMovementType;
+  quantityDelta: number;
+  unitCost: number;
+  quantityBefore: number;
+  averageCostBefore: number;
+  quantityAfter: number;
+  averageCostAfter: number;
+  sourceType: string;
+  sourceId: string | null;
+  reason: string | null;
+  createdBy: string;
+  created: string;
+};
+
+export function listStockMovements() {
+  return request<ApiStockMovement[]>("/stock/movements");
 }
 
 // ---------- Devises ----------

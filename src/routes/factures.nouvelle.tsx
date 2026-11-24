@@ -431,7 +431,7 @@ function NouvelleFacture() {
               <div className="divide-y divide-border/50">
                 {computedItems.map((l) => (
                   <div key={l.id} className="grid gap-3 p-4 sm:grid-cols-12 sm:items-start">
-                    <div className="space-y-1.5 sm:col-span-2">
+                    <div className="space-y-1.5 sm:col-span-3">
                       <Label className="text-xs">Article</Label>
                       <Input
                         value={l.article}
@@ -443,14 +443,6 @@ function NouvelleFacture() {
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label className="text-xs">Réf</Label>
                       <Input value={l.ref} onChange={(e) => updateItem(l.id, { ref: e.target.value })} className="h-9 rounded-lg text-sm" />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs">Description</Label>
-                      <Input
-                        value={l.description}
-                        onChange={(e) => updateItem(l.id, { description: e.target.value })}
-                        className="h-9 rounded-lg text-sm"
-                      />
                     </div>
                     <div className="space-y-1.5 sm:col-span-1">
                       <Label className="text-xs">Qté</Label>
@@ -487,7 +479,7 @@ function NouvelleFacture() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex items-center justify-between gap-2 sm:col-span-1">
+                    <div className="flex items-center justify-between gap-2 sm:col-span-2">
                       <div>
                         <Label className="text-xs">Total HT</Label>
                         <p className="text-sm font-semibold">{formatMoney(l.base, selectedDevise?.code)}</p>

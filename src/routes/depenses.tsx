@@ -18,6 +18,7 @@ import {
   createDepenseNote,
   deleteDepenseNote,
   listDepenseNotes,
+  listFournisseurs,
   updateDepenseNote,
   updateDepenseNoteStatus,
   type ApiDepenseNote,
@@ -56,6 +57,7 @@ function Depenses() {
     queryKey: ["depense-notes"],
     queryFn: listDepenseNotes,
   });
+  const { data: fournisseurs = [] } = useQuery({ queryKey: ["fournisseurs"], queryFn: listFournisseurs });
 
   const [noteOpen, setNoteOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<ApiDepenseNote | null>(null);
@@ -239,11 +241,28 @@ function Depenses() {
           <div className="mt-6 grid gap-4">
             <div className="space-y-2">
               <Label>Fournisseur</Label>
-              <Input
-                value={noteForm.fournisseurNom}
-                onChange={(e) => setNoteForm({ ...noteForm, fournisseurNom: e.target.value })}
-                className="rounded-xl"
-              />
+              <Select
+                value={fournisseurs.find((f) => f.nom === noteForm.fournisseurNom)?.id ?? ""}
+                onValueChange={(id) => {
+                  const f = fournisseurs.find((x) => x.id === id);
+                  if (!f) return;
+                  setNoteForm({ ...noteForm, fournisseurNom: f.nom, telephone: f.telephone ?? noteForm.telephone ?? "" });
+                }}
+              >
+                <SelectTrigger className="h-10 rounded-xl">
+                  <SelectValue placeholder="Choisir un fournisseur…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fournisseurs.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fournisseurs.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Aucun fournisseur — créez-en un depuis la page Fournisseurs.</p>
+              ) : null}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

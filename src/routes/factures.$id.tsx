@@ -210,7 +210,6 @@ function FactureDetail() {
                     <td className="px-4 py-3 text-muted-foreground">{l.ref || ""}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium">{l.article}</p>
-                      <p className="text-xs text-muted-foreground">{l.description}</p>
                     </td>
                     <td className="px-4 py-3 text-center text-muted-foreground">{l.quantity}</td>
                     <td className="px-4 py-3 text-right text-muted-foreground">{formatMoney(l.price, invoice.currency.code)}</td>

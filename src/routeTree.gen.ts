@@ -28,6 +28,7 @@ import { Route as ProfilRouteImport } from './routes/profil'
 import { Route as RapportsRouteImport } from './routes/rapports'
 import { Route as RejoindreRouteImport } from './routes/rejoindre'
 import { Route as ServicesRouteImport } from './routes/services'
+import { Route as StockRapportRouteImport } from './routes/stock-rapport'
 import { Route as TaxesRouteImport } from './routes/taxes'
 import { Route as FacturesIdRouteImport } from './routes/factures.$id'
 import { Route as FacturesNouvelleRouteImport } from './routes/factures.nouvelle'
@@ -129,6 +130,11 @@ const ServicesRoute = ServicesRouteImport.update({
   path: '/services',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StockRapportRoute = StockRapportRouteImport.update({
+  id: '/stock-rapport',
+  path: '/stock-rapport',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TaxesRoute = TaxesRouteImport.update({
   id: '/taxes',
   path: '/taxes',
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/rapports': typeof RapportsRoute
   '/rejoindre': typeof RejoindreRoute
   '/services': typeof ServicesRoute
+  '/stock-rapport': typeof StockRapportRoute
   '/taxes': typeof TaxesRoute
   '/factures/$id': typeof FacturesIdRoute
   '/factures/nouvelle': typeof FacturesNouvelleRoute
@@ -201,6 +208,7 @@ export interface FileRoutesByTo {
   '/rapports': typeof RapportsRoute
   '/rejoindre': typeof RejoindreRoute
   '/services': typeof ServicesRoute
+  '/stock-rapport': typeof StockRapportRoute
   '/taxes': typeof TaxesRoute
   '/factures/$id': typeof FacturesIdRoute
   '/factures/nouvelle': typeof FacturesNouvelleRoute
@@ -228,6 +236,7 @@ export interface FileRoutesById {
   '/rapports': typeof RapportsRoute
   '/rejoindre': typeof RejoindreRoute
   '/services': typeof ServicesRoute
+  '/stock-rapport': typeof StockRapportRoute
   '/taxes': typeof TaxesRoute
   '/factures/$id': typeof FacturesIdRoute
   '/factures/nouvelle': typeof FacturesNouvelleRoute
@@ -256,6 +265,7 @@ export interface FileRouteTypes {
     | '/rapports'
     | '/rejoindre'
     | '/services'
+    | '/stock-rapport'
     | '/taxes'
     | '/factures/$id'
     | '/factures/nouvelle'
@@ -282,6 +292,7 @@ export interface FileRouteTypes {
     | '/rapports'
     | '/rejoindre'
     | '/services'
+    | '/stock-rapport'
     | '/taxes'
     | '/factures/$id'
     | '/factures/nouvelle'
@@ -308,6 +319,7 @@ export interface FileRouteTypes {
     | '/rapports'
     | '/rejoindre'
     | '/services'
+    | '/stock-rapport'
     | '/taxes'
     | '/factures/$id'
     | '/factures/nouvelle'
@@ -335,6 +347,7 @@ export interface RootRouteChildren {
   RapportsRoute: typeof RapportsRoute
   RejoindreRoute: typeof RejoindreRoute
   ServicesRoute: typeof ServicesRoute
+  StockRapportRoute: typeof StockRapportRoute
   TaxesRoute: typeof TaxesRoute
   FacturesIdRoute: typeof FacturesIdRoute
   FacturesNouvelleRoute: typeof FacturesNouvelleRoute
@@ -477,6 +490,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/stock-rapport': {
+      id: '/stock-rapport'
+      path: '/stock-rapport'
+      fullPath: '/stock-rapport'
+      preLoaderRoute: typeof StockRapportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/taxes': {
       id: '/taxes'
       path: '/taxes'
@@ -535,6 +555,7 @@ const rootRouteChildren: RootRouteChildren = {
   RapportsRoute: RapportsRoute,
   RejoindreRoute: RejoindreRoute,
   ServicesRoute: ServicesRoute,
+  StockRapportRoute: StockRapportRoute,
   TaxesRoute: TaxesRoute,
   FacturesIdRoute: FacturesIdRoute,
   FacturesNouvelleRoute: FacturesNouvelleRoute,

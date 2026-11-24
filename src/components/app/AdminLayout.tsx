@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Building2,
+  ClipboardList,
   Coins,
   FileMinus,
   FileText,
@@ -44,6 +45,7 @@ const nav = [
   { to: "/clients", label: "Clients", icon: User },
   { to: "/fournisseurs", label: "Fournisseurs", icon: Truck },
   { to: "/services", label: "Stock", icon: Package },
+  { to: "/stock-rapport", label: "Rapport de stock", icon: ClipboardList },
   { to: "/articles", label: "Articles", icon: Ruler },
   { to: "/factures-ventes", label: "Factures Ventes", icon: FileText },
   { to: "/factures-achats", label: "Factures Achats", icon: FileMinus },
